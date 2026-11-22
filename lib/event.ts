@@ -40,6 +40,27 @@ export interface EventChannel {
   name: string;
 }
 
+/**
+ * 会場マップの中心（OpenStreetMap 上の座標）。主催者が設定画面で決める。
+ * 未設定なら null で、来場者画面に地図は出ない。
+ */
+export interface EventVenueMap {
+  lat: number;
+  lng: number;
+  zoom: number;
+}
+
+/**
+ * 会場マップのピン（ステージ・フード・トイレ等の場所）。
+ * 主催者が地図をタップして置く。id は名前を変えても変えない。
+ */
+export interface EventPin {
+  id: string;
+  label: string;
+  lat: number;
+  lng: number;
+}
+
 export interface EventConfig {
   id: string;
   /** イベント名（例: 展示会名） */
@@ -77,6 +98,10 @@ export interface EventConfig {
    * 読み取り時は空配列に倒す。
    */
   channels: EventChannel[];
+  /** 会場マップの中心。未設定は null */
+  venueMap: EventVenueMap | null;
+  /** 会場マップのピン（最大 MAX_EVENT_PINS 件） */
+  pins: EventPin[];
   /**
    * クーポン上限（イベント全体の件数）。購読者上限と同じく契約枠の軸なので、
    * 変更は運営側のみ。既定は MAX_COUPONS_PER_EVENT。
@@ -124,6 +149,8 @@ export const MAX_CONCURRENT_EVENTS = 3;
 export const MAX_INFO_PDFS = 5;
 export const MAX_EVENT_LINKS = 3;
 export const MAX_EVENT_CHANNELS = 10;
+export const MAX_EVENT_PINS = 30;
+export const MAX_PIN_LABEL_LENGTH = 30;
 export const MAX_CHANNEL_NAME_LENGTH = 50;
 export const DEFAULT_RESET_TIME = '00:00';
 export const DEFAULT_BACKUP_RETENTION_DAYS = 30;
@@ -144,6 +171,8 @@ export interface CreateEventInput {
   admissionQrEnabled?: boolean;
   links?: EventLink[];
   channels?: EventChannel[];
+  venueMap?: EventVenueMap | null;
+  pins?: EventPin[];
   couponCap?: number;
   backupRetentionDays?: number;
 }
@@ -307,6 +336,110 @@ export function parseEventChannels(value: unknown): EventChannel[] {
     }
   }
   return channels;
+}
+
+function isValidLatLng(lat: unknown, lng: unknown): boolean {
+  return (
+    typeof lat === 'number' &&
+    Number.isFinite(lat) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    typeof lng === 'number' &&
+    Number.isFinite(lng) &&
+    lng >= -180 &&
+    lng <= 180
+  );
+}
+
+/**
+ * 会場マップ中心の入力を検証して正規化する（書き込み用）。
+ * 未指定（null/undefined）は null。座標が不正なら throw。
+ */
+export function normalizeVenueMap(input: unknown): EventVenueMap | null {
+  if (input === undefined || input === null) return null;
+  if (typeof input !== 'object') throw new Error('会場マップの形式が不正です');
+  const record = input as Record<string, unknown>;
+  if (!isValidLatLng(record.lat, record.lng)) {
+    throw new Error('会場マップの座標が不正です');
+  }
+  const zoomRaw = typeof record.zoom === 'number' ? record.zoom : 16;
+  const zoom = Math.min(19, Math.max(1, Math.round(zoomRaw)));
+  return { lat: record.lat as number, lng: record.lng as number, zoom };
+}
+
+/** 保存済みの会場マップ中心を防御的に読む（読み取り用）。 */
+export function parseVenueMap(value: unknown): EventVenueMap | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  if (!isValidLatLng(record.lat, record.lng)) return null;
+  const zoomRaw = typeof record.zoom === 'number' ? record.zoom : 16;
+  return {
+    lat: record.lat as number,
+    lng: record.lng as number,
+    zoom: Math.min(19, Math.max(1, Math.round(zoomRaw))),
+  };
+}
+
+const PIN_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
+
+function generatePinId(): string {
+  return `pin${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * 会場ピンの入力を検証して正規化する（書き込み用。不正なら throw）。
+ * ラベルが空のピンは読み飛ばす。座標が不正なピンはエラーにする
+ * （地図に出ないピンが黙って消えると主催者が気づけないため）。
+ */
+export function normalizeEventPins(input: unknown): EventPin[] {
+  if (input === undefined || input === null) return [];
+  if (!Array.isArray(input)) throw new Error('ピンの形式が不正です');
+  const pins: EventPin[] = [];
+  const usedIds = new Set<string>();
+  for (const item of input) {
+    if (!item || typeof item !== 'object') throw new Error('ピンの形式が不正です');
+    const record = item as Record<string, unknown>;
+    const label = typeof record.label === 'string' ? record.label.trim() : '';
+    if (!label) continue;
+    if (label.length > MAX_PIN_LABEL_LENGTH) {
+      throw new Error(`ピンの名前は${MAX_PIN_LABEL_LENGTH}文字までです`);
+    }
+    if (!isValidLatLng(record.lat, record.lng)) {
+      throw new Error('ピンの座標が不正です');
+    }
+    let id = typeof record.id === 'string' ? record.id : '';
+    if (!PIN_ID_PATTERN.test(id) || usedIds.has(id)) id = generatePinId();
+    usedIds.add(id);
+    pins.push({ id, label, lat: record.lat as number, lng: record.lng as number });
+  }
+  if (pins.length > MAX_EVENT_PINS) {
+    throw new Error(`ピンは最大${MAX_EVENT_PINS}件までです`);
+  }
+  return pins;
+}
+
+/** 保存済みの会場ピンを防御的に読む（読み取り用。throw しない）。 */
+export function parseEventPins(value: unknown): EventPin[] {
+  if (!Array.isArray(value)) return [];
+  const pins: EventPin[] = [];
+  const usedIds = new Set<string>();
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const record = item as Record<string, unknown>;
+    const label = typeof record.label === 'string' ? record.label.trim() : '';
+    const id = typeof record.id === 'string' ? record.id : '';
+    if (
+      label &&
+      PIN_ID_PATTERN.test(id) &&
+      !usedIds.has(id) &&
+      isValidLatLng(record.lat, record.lng)
+    ) {
+      usedIds.add(id);
+      pins.push({ id, label, lat: record.lat as number, lng: record.lng as number });
+      if (pins.length >= MAX_EVENT_PINS) break;
+    }
+  }
+  return pins;
 }
 
 /**
