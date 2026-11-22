@@ -62,7 +62,6 @@ export async function POST(request: Request) {
     phone: typeof body.phone === 'string' ? body.phone : undefined,
     startDate: typeof body.startDate === 'string' ? body.startDate : '',
     subscriberCap: typeof body.subscriberCap === 'number' ? body.subscriberCap : undefined,
-    couponCap: typeof body.couponCap === 'number' ? body.couponCap : undefined,
     // 一時上げまわりの任意項目。型だけ通して、値の妥当性は
     // lib/provisioning.ts の無害化に任せる（不正値は無視される）。
     tempSubscriberCapUntil:
@@ -74,10 +73,6 @@ export async function POST(request: Request) {
         ? body.restoredSubscriberCap
         : undefined,
     agencyCode: typeof body.agencyCode === 'string' ? body.agencyCode : null,
-    // 出店者課金オプションの任意項目。型だけ通して、反映可否は
-    // lib/provisioning.ts 側の判定に任せる（boolean 以外・未送信は既存値を変えない）。
-    billingOptionEnabled:
-      typeof body.billingOptionEnabled === 'boolean' ? body.billingOptionEnabled : undefined,
   });
 
   if (!result.ok) {

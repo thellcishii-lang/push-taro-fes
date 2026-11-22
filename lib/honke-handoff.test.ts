@@ -33,14 +33,6 @@ describe('createHandoffToken', () => {
     });
   });
 
-  it('includes the eventId for coupon-option tokens', () => {
-    const token = createHandoffToken(
-      { contractId: 'shop-1', purpose: 'coupon-option', eventId: 'ev-9', nonce: 'n' },
-      SECRET,
-      NOW
-    );
-    expect(decodePayload(token).eventId).toBe('ev-9');
-  });
 
   it('generates a random nonce when not specified', () => {
     const a = createHandoffToken({ contractId: 's', purpose: 'account' }, SECRET, NOW);
@@ -55,14 +47,4 @@ describe('buildHonkeHandoffUrl', () => {
     expect(url.startsWith('https://push-taro.com/event-account?handoff=')).toBe(true);
   });
 
-  it('points coupon-option links at /event-option with the eventId', () => {
-    const url = buildHonkeHandoffUrl(
-      { contractId: 'shop-1', purpose: 'coupon-option', eventId: 'ev 1' },
-      SECRET,
-      NOW
-    );
-    expect(url.startsWith('https://push-taro.com/event-option?eventId=ev%201&handoff=')).toBe(
-      true
-    );
-  });
 });

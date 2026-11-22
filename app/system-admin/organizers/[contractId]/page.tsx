@@ -34,8 +34,7 @@ export default function SystemAdminOrganizerDetailPage() {
   const [organizer, setOrganizer] = useState<Organizer | null>(null);
   const [events, setEvents] = useState<EventConfig[]>([]);
   const [subscriberCap, setSubscriberCap] = useState('');
-  const [couponCap, setCouponCap] = useState('');
-  const [eventCaps, setEventCaps] = useState<Record<string, { subscriberCap: string; couponCap: string }>>({});
+  const [eventCaps, setEventCaps] = useState<Record<string, { subscriberCap: string }>>({});
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -70,10 +69,9 @@ export default function SystemAdminOrganizerDetailPage() {
       setOrganizer(data.organizer);
       setEvents(data.events ?? []);
       setSubscriberCap(String(data.organizer.subscriberCap));
-      setCouponCap(String(data.organizer.couponCap));
-      const caps: Record<string, { subscriberCap: string; couponCap: string }> = {};
+      const caps: Record<string, { subscriberCap: string }> = {};
       for (const ev of (data.events ?? []) as EventConfig[]) {
-        caps[ev.id] = { subscriberCap: String(ev.subscriberCap), couponCap: String(ev.couponCap) };
+        caps[ev.id] = { subscriberCap: String(ev.subscriberCap) };
       }
       setEventCaps(caps);
     } catch (e) {
@@ -93,7 +91,6 @@ export default function SystemAdminOrganizerDetailPage() {
         method: 'PATCH',
         body: JSON.stringify({
           subscriberCap: Number(subscriberCap),
-          couponCap: Number(couponCap),
         }),
       });
       setOrganizer(data.organizer);
@@ -135,7 +132,6 @@ export default function SystemAdminOrganizerDetailPage() {
         method: 'PATCH',
         body: JSON.stringify({
           subscriberCap: Number(caps.subscriberCap),
-          couponCap: Number(caps.couponCap),
         }),
       });
       setMessage('イベントの上限を更新しました');
@@ -201,10 +197,6 @@ export default function SystemAdminOrganizerDetailPage() {
           購読者上限
           <input style={inputStyle} type="number" min={1} value={subscriberCap} onChange={(e) => setSubscriberCap(e.target.value)} />
         </label>
-        <label style={labelStyle}>
-          クーポン上限
-          <input style={inputStyle} type="number" min={1} value={couponCap} onChange={(e) => setCouponCap(e.target.value)} />
-        </label>
         <button onClick={handleSaveCaps} disabled={busy} style={{ padding: '10px 16px', fontWeight: 700 }}>
           契約枠を保存
         </button>{' '}
@@ -239,22 +231,7 @@ export default function SystemAdminOrganizerDetailPage() {
                       onChange={(e) =>
                         setEventCaps((prev) => ({
                           ...prev,
-                          [ev.id]: { ...(prev[ev.id] ?? { couponCap: '' }), subscriberCap: e.target.value },
-                        }))
-                      }
-                    />
-                  </label>
-                  <label style={{ fontSize: 13, fontWeight: 600 }}>
-                    クーポン上限
-                    <input
-                      style={{ ...inputStyle, width: 120 }}
-                      type="number"
-                      min={1}
-                      value={eventCaps[ev.id]?.couponCap ?? ''}
-                      onChange={(e) =>
-                        setEventCaps((prev) => ({
-                          ...prev,
-                          [ev.id]: { ...(prev[ev.id] ?? { subscriberCap: '' }), couponCap: e.target.value },
+                          [ev.id]: { ...(prev[ev.id] ?? {}), subscriberCap: e.target.value },
                         }))
                       }
                     />

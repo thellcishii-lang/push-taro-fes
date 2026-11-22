@@ -30,8 +30,8 @@ export async function PATCH(
     return NextResponse.json({ error: 'リクエスト形式が不正です' }, { status: 400 });
   }
 
-  const patch: { subscriberCap?: number; couponCap?: number } = {};
-  for (const field of ['subscriberCap', 'couponCap'] as const) {
+  const patch: { subscriberCap?: number } = {};
+  for (const field of ['subscriberCap'] as const) {
     const value = body[field];
     if (value !== undefined) {
       if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
@@ -45,7 +45,7 @@ export async function PATCH(
   }
   if (Object.keys(patch).length === 0) {
     return NextResponse.json(
-      { error: 'subscriberCap または couponCap が必要です' },
+      { error: 'subscriberCap が必要です' },
       { status: 400 },
     );
   }

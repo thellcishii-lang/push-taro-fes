@@ -21,7 +21,7 @@ import { createHmac, randomBytes } from 'node:crypto';
 export const HONKE_BASE_URL = 'https://push-taro.com';
 export const HANDOFF_TTL_SECONDS = 600;
 
-export type HandoffPurpose = 'account' | 'coupon-option';
+export type HandoffPurpose = 'account';
 
 export interface HandoffPayload {
   v: 1;
@@ -66,11 +66,6 @@ export function buildHonkeHandoffUrl(
   nowSeconds: number
 ): string {
   const token = createHandoffToken(input, secret, nowSeconds);
-  if (input.purpose === 'coupon-option') {
-    return `${HONKE_BASE_URL}/event-option?eventId=${encodeURIComponent(
-      input.eventId ?? ''
-    )}&handoff=${encodeURIComponent(token)}`;
-  }
   return `${HONKE_BASE_URL}/event-account?handoff=${encodeURIComponent(token)}`;
 }
 
