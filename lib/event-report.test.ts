@@ -60,14 +60,5 @@ describe('formatFinalReportHtml', () => {
     expect(html).toContain('合計 0 通');
   });
 
-  it('出店者課金の入金合計があれば表示する', () => {
-    const html = formatFinalReportHtml({ ...report, billingTotalPaid: 12000 });
-    expect(html).toContain('出店者課金の入金合計');
-    expect(html).toContain('12,000');
-  });
 
-  it('課金合計が無ければ課金の行は出ない', () => {
-    const html = formatFinalReportHtml(report);
-    expect(html).not.toContain('出店者課金の入金合計');
-  });
 });

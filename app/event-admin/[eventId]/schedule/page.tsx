@@ -71,7 +71,7 @@ for (let h = 0; h < 24; h += 1) {
   }
 }
 
-const VIOLET = '#6D28D9';
+const VIOLET = '#0e7fc4';
 
 const containerStyle: React.CSSProperties = {
   padding: '20px 16px 48px',
@@ -119,7 +119,7 @@ const primaryButtonStyle: React.CSSProperties = {
   border: 'none',
   borderRadius: 12,
   cursor: 'pointer',
-  boxShadow: '0 4px 12px rgba(109, 40, 217, 0.25)',
+  boxShadow: '0 4px 12px rgba(14, 127, 196, 0.25)',
 };
 
 const dangerButtonStyle: React.CSSProperties = {
@@ -483,7 +483,7 @@ export default function EventScheduleAdminPage() {
                   fontSize: 12,
                   fontWeight: 700,
                   borderRadius: 999,
-                  backgroundColor: '#ede9fe',
+                  backgroundColor: '#eef7fb',
                   color: VIOLET,
                   whiteSpace: 'nowrap',
                 }}

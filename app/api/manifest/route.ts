@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     start_url: shopId ? `/?s=${shopId}` : '/',
     display: 'standalone',
     background_color: '#ffffff',
-    theme_color: '#ff6b6b',
+    theme_color: '#0e7fc4',
     icons: [
       { src: '/icon-192x192.png', sizes: '192x192', type: 'image/png' },
       { src: '/icon-512x512.png', sizes: '512x512', type: 'image/png' },

@@ -35,7 +35,6 @@ import {
   adminPageTitleStyle,
 } from '@/components/AdminBrand';
 import { adminText, uiText } from '@/lib/ui-text';
-import { openHonkeLink } from '@/lib/honke-handoff-client';
 import { AdminShell } from '@/components/AdminShell';
 import { CapWarningBanner } from '@/components/CapWarningBanner';
 import { AdminNav } from '../AdminNav';
@@ -57,14 +56,10 @@ interface Coupon {
   active: boolean;
 }
 
-const VIOLET = '#6D28D9';
+const VIOLET = '#0e7fc4';
 
-/** クーポンオプションで増やせるイベント単位の上限（LP 記載）。 */
-const COUPON_OPTION_MAX_CAP = 500;
 /** 出店者一覧で既定表示する件数（残りはアコーディオンに畳む）。 */
 const EXHIBITOR_PREVIEW_COUNT = 2;
-/** クーポンオプションの購入先（本家の決済ページ）。 */
-const HONKE_COUPON_OPTION_URL = 'https://push-taro.com/event-option';
 
 const containerStyle: React.CSSProperties = {
   padding: '20px 16px 48px',
@@ -112,7 +107,7 @@ const primaryButtonStyle: React.CSSProperties = {
   border: 'none',
   borderRadius: 12,
   cursor: 'pointer',
-  boxShadow: '0 4px 12px rgba(109, 40, 217, 0.25)',
+  boxShadow: '0 4px 12px rgba(14, 127, 196, 0.25)',
 };
 
 const sectionTitleStyle: React.CSSProperties = {
@@ -479,7 +474,7 @@ export default function EventCouponAdminPage() {
                     transition: 'background-color 0.5s ease',
                     ...(couponExhibitorFilter === exhibitor.id
                       ? {
-                          backgroundColor: '#F5F3FF',
+                          backgroundColor: '#eef7fb',
                           borderRadius: 8,
                           padding: '11px 10px',
                           margin: '0 -10px',
@@ -487,7 +482,7 @@ export default function EventCouponAdminPage() {
                       : null),
                     ...(highlight?.kind === 'exhibitor' && highlight.id === exhibitor.id
                       ? {
-                          backgroundColor: '#F3EFFF',
+                          backgroundColor: '#f4fafc',
                           borderRadius: 8,
                           padding: '11px 10px',
                           margin: '0 -10px',
@@ -613,46 +608,6 @@ export default function EventCouponAdminPage() {
         <p style={{ fontSize: 12.5, color: '#64748b', marginTop: 5 }}>
           {adminText(locale, 'capNote')}
         </p>
-        <div
-          style={{
-            ...cardStyle,
-            marginTop: 12,
-            padding: 24,
-            backgroundColor: '#F5F3FF',
-            border: '1px solid #DDD6FE',
-          }}
-        >
-          <div style={{ fontWeight: 800, fontSize: 15, color: '#4C1D95' }}>
-            {adminText(locale, 'couponOptionTitle')}
-          </div>
-          <p style={{ fontSize: 13, color: '#475569', marginTop: 6 }}>
-            {adminText(locale, 'couponOptionBody', { cap: String(couponCap) })}
-          </p>
-          {couponCap >= COUPON_OPTION_MAX_CAP ? (
-            <p style={{ fontSize: 13, fontWeight: 600, color: '#b45309', marginTop: 8 }}>
-              {adminText(locale, 'couponOptionMaxNote')}
-            </p>
-          ) : (
-            <button
-              type="button"
-              onClick={() =>
-                void openHonkeLink({
-                  purpose: 'coupon-option',
-                  eventId,
-                  fallbackUrl: `${HONKE_COUPON_OPTION_URL}?eventId=${eventId}`,
-                })
-              }
-              style={{
-                ...primaryButtonStyle,
-                marginTop: 10,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              {adminText(locale, 'couponOptionButton')}
-            </button>
-          )}
-        </div>
         {filterExhibitor && (
           <div
             style={{
@@ -663,11 +618,11 @@ export default function EventCouponAdminPage() {
               justifyContent: 'space-between',
               alignItems: 'center',
               gap: 8,
-              backgroundColor: '#F5F3FF',
-              border: '1px solid #DDD6FE',
+              backgroundColor: '#eef7fb',
+              border: '1px solid #bfe3f5',
             }}
           >
-            <span style={{ fontSize: 13.5, fontWeight: 600, color: '#4C1D95' }}>
+            <span style={{ fontSize: 13.5, fontWeight: 600, color: '#0a5e94' }}>
               {adminText(locale, 'couponFilterLabel', {
                 name: filterExhibitor.name,
                 count: String(visibleCoupons.length),
@@ -708,7 +663,7 @@ export default function EventCouponAdminPage() {
               marginTop: 12,
               transition: 'background-color 0.5s ease, border-color 0.5s ease',
               ...(highlight?.kind === 'coupon' && highlight.id === coupon.id
-                ? { backgroundColor: '#F3EFFF', borderColor: VIOLET }
+                ? { backgroundColor: '#f4fafc', borderColor: VIOLET }
                 : null),
             }}
           >

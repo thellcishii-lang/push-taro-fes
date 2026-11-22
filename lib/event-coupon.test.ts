@@ -10,7 +10,6 @@ import {
   isCouponCapReached,
   memberIdForDevice,
   tallyClaimsByCoupon,
-  visibleCatalogCoupons,
 } from './event-coupon';
 
 const couponA: EventCoupon = {
@@ -131,39 +130,6 @@ describe('tallyClaimsByCoupon（取得・消込件数の集計）', () => {
       { couponId: 'coupon-a', status: 'redeemed' },
     ]);
     expect(tally.get('coupon-a')).toEqual({ claimedCount: 2, redeemedCount: 2 });
-  });
-});
-
-describe('visibleCatalogCoupons（課金停止中の出店者をカタログから除外）', () => {
-  const exhibitor = (id: string, billingSuspended: boolean): EventExhibitor => ({
-    id,
-    name: `出店者${id}`,
-    email: `${id}@example.com`,
-    hasAccessCode: true,
-    lang: 'ja',
-    billingSuspended,
-  });
-
-  it('停止中出店者のクーポンだけが消える', () => {
-    const result = visibleCatalogCoupons([couponA, couponB], [
-      exhibitor('exhibitor-a', false),
-      exhibitor('exhibitor-b', true),
-    ]);
-    expect(result.map((c) => c.id)).toEqual(['coupon-a']);
-  });
-
-  it('誰も停止していなければ入力をそのまま返す', () => {
-    const coupons = [couponA, couponB];
-    const result = visibleCatalogCoupons(coupons, [
-      exhibitor('exhibitor-a', false),
-      exhibitor('exhibitor-b', false),
-    ]);
-    expect(result).toBe(coupons);
-  });
-
-  it('出店者一覧に無いクーポンは残す（安全側）', () => {
-    const result = visibleCatalogCoupons([couponA], []);
-    expect(result.map((c) => c.id)).toEqual(['coupon-a']);
   });
 });
 

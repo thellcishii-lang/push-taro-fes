@@ -36,7 +36,7 @@ import { CapWarningBanner } from '@/components/CapWarningBanner';
 import { AdminNav } from './AdminNav';
 import { EventConfig, subscriberUsage } from '@/lib/event';
 
-const VIOLET = '#6D28D9';
+const VIOLET = '#0e7fc4';
 
 const containerStyle: React.CSSProperties = {
   padding: '20px 16px 48px',
@@ -84,7 +84,7 @@ const primaryButtonStyle: React.CSSProperties = {
   border: 'none',
   borderRadius: 12,
   cursor: 'pointer',
-  boxShadow: '0 4px 12px rgba(109, 40, 217, 0.25)',
+  boxShadow: '0 4px 12px rgba(14, 127, 196, 0.25)',
 };
 
 const quickLinkStyle: React.CSSProperties = {
@@ -252,14 +252,13 @@ export default function EventDashboardPage() {
       ? '#DC2626'
       : usage.level === 'warning'
         ? '#F59E0B'
-        : '#7C3AED'
-    : '#7C3AED';
+        : '#19b8a6'
+    : '#19b8a6';
 
   const quickLinks: Array<{ href: string; label: string }> = [
     { href: `/event-admin/${eventId}/push`, label: adminText(locale, 'navPush') },
     { href: `/event-admin/${eventId}/schedule`, label: adminText(locale, 'navSchedule') },
     { href: `/event-admin/${eventId}/coupons`, label: adminText(locale, 'navCoupons') },
-    { href: `/event-admin/${eventId}/billing`, label: adminText(locale, 'navBilling') },
     { href: `/event-admin/${eventId}/settings`, label: adminText(locale, 'navConfig') },
   ];
 
@@ -337,7 +336,7 @@ export default function EventDashboardPage() {
                 style={{
                   height: 8,
                   borderRadius: 999,
-                  backgroundColor: '#EDE9FE',
+                  backgroundColor: '#eef7fb',
                   overflow: 'hidden',
                   marginTop: 8,
                 }}

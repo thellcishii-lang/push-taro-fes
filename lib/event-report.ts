@@ -42,11 +42,6 @@ dailyStats: EventDailyStat[];
 finalCounts: SubcollectionCounts;
 /** 配信ごとの送信通数（配信のメータリング基盤が記録する。未記録なら空） */
 campaignSends: CampaignSend[];
-/**
- * 出店者課金オプションの入金合計（円、支払い完了分のみ）。
- * 課金の記録が無い（オプション未使用）場合はフィールド自体を持たない。
- */
-billingTotalPaid?: number;
 emailStatus: ReportEmailStatus;
 emailAttempts: number;
 createdAt: string;
@@ -56,9 +51,6 @@ const REPORTS_COLLECTION = 'event_reports';
 const REPORT_BACKUPS_COLLECTION = 'event_report_backups';
 const DAILY_STATS_SUBCOLLECTION = 'dailyStats';
 const CAMPAIGNS_SUBCOLLECTION = 'campaigns';
-// 出店者課金の支払い記録（コレクション名の正は lib/event-billing.ts）。
-// レポート集計では合計だけを読むため、ここでは名前だけを持つ。
-const BILLING_PAYMENTS_SUBCOLLECTION = 'billingPayments';
 
 const ALL_SUBCOLLECTIONS = Object.values(EVENT_SUBCOLLECTIONS);
 
@@ -120,22 +112,6 @@ redemptions: d.redemptions?? 0,
 .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-/**
- * 出店者課金の入金合計（支払い完了分のみ・円）。
- * 支払い記録は台帳として終了後も残るが、レポートにも合計を残す。
- */
-async function sumBillingTotalPaid(eventId: string): Promise<number> {
-const snap = await eventDoc(eventId)
-.collection(BILLING_PAYMENTS_SUBCOLLECTION)
-.get();
-let total = 0;
-for (const doc of snap.docs) {
-const d = doc.data();
-if (d.status === 'paid' && typeof d.amount === 'number') total += d.amount;
-}
-return total;
-}
-
 async function readCampaignSends(eventId: string): Promise<CampaignSend[]> {
 const snap = await eventDoc(eventId).collection(CAMPAIGNS_SUBCOLLECTION).get();
 return snap.docs
@@ -165,8 +141,6 @@ periodEnd: data.periodEnd,
 dailyStats: data.dailyStats?? [],
 finalCounts: data.finalCounts,
 campaignSends: data.campaignSends?? [],
-billingTotalPaid:
-typeof data.billingTotalPaid === 'number'? data.billingTotalPaid: undefined,
 emailStatus: data.emailStatus?? 'pending',
 emailAttempts: data.emailAttempts?? 0,
 createdAt: data.createdAt?.toDate?.().toISOString()?? data.createdAt?? '',
@@ -193,12 +167,11 @@ if (existing) return existing;
 
 // 終了日ぶんのスナップショットも残してから集計する
 await snapshotDailyStats(event, now);
-const [dailyStats, finalCounts, campaignSends, billingTotalPaid] =
+const [dailyStats, finalCounts, campaignSends] =
 await Promise.all([
 readDailyStats(event.id),
 countAllSubcollections(event.id),
 readCampaignSends(event.id),
-sumBillingTotalPaid(event.id),
 ]);
 
 const report: EventFinalReport = {
@@ -210,8 +183,6 @@ periodEnd: event.endDate,
 dailyStats,
 finalCounts,
 campaignSends,
-// 課金の入金が無いイベントではフィールド自体を持たない（レポートを汚さない）
-...(billingTotalPaid > 0 ? { billingTotalPaid } : {}),
 emailStatus: 'pending',
 emailAttempts: 0,
 createdAt: now.toISOString(),
@@ -332,8 +303,6 @@ ${rows}
 <table border="1" cellspacing="0" cellpadding="6">
 <tr><th>配信</th><th>送信数</th></tr>
 ${campaignRows}
-</table>${report.billingTotalPaid ? `
-<h3>出店者課金の入金合計</h3>
-<p>${report.billingTotalPaid.toLocaleString()}円（出店者課金オプション・Stripe 経由の入金分）</p>` : ''}
+</table>
 <p>※登録情報は、規約どおりイベント終了に伴い削除されました。本レポートには件数・集計のみを記載しています。</p>`;
 }

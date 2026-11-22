@@ -82,13 +82,6 @@ const couponsIcon = (
   </NavIcon>
 );
 
-const billingIcon = (
-  <NavIcon>
-    <rect x="3" y="6" width="18" height="13" rx="2" />
-    <path d="M3 10h18M7 15h4" />
-  </NavIcon>
-);
-
 const gearIcon = (
   <NavIcon>
     <circle cx="12" cy="12" r="3" />
@@ -116,7 +109,7 @@ const itemCurrentStyle: React.CSSProperties = {
   ...itemBaseStyle,
   backgroundColor: ADMIN_VIOLET,
   color: '#ffffff',
-  boxShadow: '0 4px 12px rgba(109, 40, 217, 0.30)',
+  boxShadow: '0 4px 12px rgba(14, 127, 196, 0.30)',
 };
 
 const cardNavStyle: React.CSSProperties = {
@@ -185,10 +178,7 @@ export function AdminNav({
         { key: '①', href: `/event-admin/${eventId}/push`, label: adminText(locale, 'navPush'), icon: pushIcon },
         { key: '②', href: `/event-admin/${eventId}/schedule`, label: adminText(locale, 'navSchedule'), icon: scheduleIcon },
         { key: '③', href: `/event-admin/${eventId}/coupons`, label: adminText(locale, 'navCoupons'), icon: couponsIcon },
-        // 課金は別料金オプション。ナビは常時出し、オプション OFF の
-        // 契約では課金ページ側で案内文を出す（API が 404 を返す）。
-        { key: '④', href: `/event-admin/${eventId}/billing`, label: adminText(locale, 'navBilling'), icon: billingIcon },
-        { key: '⑤', href: `/event-admin/${eventId}/settings`, label: adminText(locale, 'navConfig'), icon: gearIcon },
+        { key: '④', href: `/event-admin/${eventId}/settings`, label: adminText(locale, 'navConfig'), icon: gearIcon },
       ]
     : [
         { key: '設定', href: '/event-admin', label: adminText(locale, 'navSettings'), icon: settingsIcon },
