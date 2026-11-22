@@ -1,5 +1,5 @@
 // app/api/events/[eventId]/registration-status/route.test.ts
-// 登録状態の確認 API: 電話認証トークンから本人を特定し、
+// 登録状態の確認 API: 端末認証トークンから本人を特定し、
 // 現在のリセット範囲で登録済みかどうかだけを返すことを検証する。
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -21,9 +21,9 @@ vi.mock('@/lib/event-register', async (importOriginal) => {
 });
 
 const { GET } = await import('./route');
-const { memberIdForPhone } = await import('@/lib/event-register');
+const { memberIdForDevice } = await import('@/lib/event-coupon');
 
-const PHONE = '+819012345678';
+const UID = 'anon-uid-1';
 
 function request(withAuth = true) {
   return new Request('http://localhost/api/events/event-1/registration-status', {
@@ -37,18 +37,18 @@ function params() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.verifyIdToken.mockResolvedValue({ phone_number: PHONE });
+  mocks.verifyIdToken.mockResolvedValue({ uid: UID });
   mocks.getVisitorRegistrationStatus.mockResolvedValue({ ok: true, registered: true });
 });
 
 describe('GET /api/events/[eventId]/registration-status', () => {
-  it('登録済みなら registered=true を返し、電話番号から導いた memberId で引く', async () => {
+  it('登録済みなら registered=true を返し、端末の識別子から導いた memberId で引く', async () => {
     const res = await GET(request(), params());
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ registered: true });
     expect(mocks.getVisitorRegistrationStatus).toHaveBeenCalledWith(
       'event-1',
-      memberIdForPhone(PHONE),
+      memberIdForDevice(UID),
     );
   });
 
@@ -75,8 +75,8 @@ describe('GET /api/events/[eventId]/registration-status', () => {
     expect(mocks.getVisitorRegistrationStatus).not.toHaveBeenCalled();
   });
 
-  it('電話番号を含まないトークンは 401', async () => {
-    mocks.verifyIdToken.mockResolvedValue({ uid: 'anonymous-user' });
+  it('端末の識別子を含まないトークンは 401', async () => {
+    mocks.verifyIdToken.mockResolvedValue({ phone_number: '+819012345678' });
     const res = await GET(request(), params());
     expect(res.status).toBe(401);
     expect(mocks.getVisitorRegistrationStatus).not.toHaveBeenCalled();

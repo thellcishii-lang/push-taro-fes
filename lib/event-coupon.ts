@@ -7,7 +7,7 @@
 //   Auth のアカウントは作らない（Auth は主催者だけ）。
 // - coupons/{couponId}: クーポン。必ず所有する出店者（exhibitorId）を持ち、
 //   検索・一覧用に出店者名とキーワードを保持する。イベント全体で最大100件。
-// - claims/{memberId}_{couponId}: 来場者の取得記録（電話番号キー）。
+// - claims/{memberId}_{couponId}: 来場者の取得記録（端末キー）。
 // - redemptions/{claimId}: 消込記録。
 //
 // 消込の鉄則: 出店者は自社クーポンしか消込できない。この判定は画面ではなく
@@ -86,10 +86,14 @@ export interface EventClaim {
   status: 'claimed' | 'redeemed';
 }
 
-// PR #4（event-register）の memberIdForPhone と同一式。
-// 両PRのマージ後に共通化する。
-export function memberIdForPhone(phoneE164: string): string {
-  return createHash('sha256').update(phoneE164.trim()).digest('hex');
+/**
+ * 端末の識別子（匿名認証の uid）から memberId を導く。
+ * uid そのものをドキュメントIDにせず、'device:' という接頭辞付きでハッシュ化する
+ * （lib/event-register.ts の登録側と同一式にすること）。
+ * FES は端末認証のみで、電話番号は一切集めない。
+ */
+export function memberIdForDevice(deviceUid: string): string {
+  return createHash('sha256').update(`device:${deviceUid.trim()}`).digest('hex');
 }
 
 export function claimIdFor(memberId: string, couponId: string): string {

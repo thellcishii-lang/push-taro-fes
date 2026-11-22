@@ -1,5 +1,5 @@
 // lib/event-reset.ts
-// イベントの日次リセットと終了処理（電話番号消去）の実行処理。
+// イベントの日次リセットと終了処理（登録情報消去）の実行処理。
 //
 // 干渉させないためのポイント:
 // - 削除対象は events/{eventId} 配下のサブコレクションだけ。他イベントには一切触れない。
@@ -48,7 +48,7 @@ export function resetTargets(
   if (kind === 'finalize') return [...ALL_SUBCOLLECTIONS];
   // 日次リセット
   if (mode === 'full-daily') return [...ALL_SUBCOLLECTIONS];
-  // keep-phones: 電話番号と取得・消込記録は期間中保持し、購読だけ毎日リセット
+  // keep-phones: 端末情報と取得・消込記録は期間中保持し、購読だけ毎日リセット
   return [EVENT_SUBCOLLECTIONS.subscribers];
 }
 
@@ -217,7 +217,7 @@ export async function executeEventReset(
  *    tick の再送スイープと管理画面からの再送で何度でも送り直せる（削除はブロックしない）。
  * 4. 出店者課金オプションが有効なら、そのイベントの月額サブスクリプションを
  *    主催者の Stripe で自動解約する（ベストエフォート。失敗しても続行する）。
- * 5. 電話番号を含む全対象を削除する。消し終えた場合のみ finalizedAt と status='ended' を記録する。
+ * 5. 対象をすべて削除する。消し終えた場合のみ finalizedAt と status='ended' を記録する。
  * （リセットより優先して呼ばれる前提）
  */
 export async function executeEventFinalization(

@@ -1,14 +1,16 @@
 // lib/event-register.ts
 // Push-taro FES の来場者登録（events/{eventId} 配下への配置）。
 //
-// - 本人確認は Firebase Phone Auth（SMS認証）。電話番号がその人の識別キーになる
-//   （再登録によるクーポンの二重取得を防ぐため）。
-// - members/{memberId}: 電話番号を含む本人確認レコード。memberId は電話番号の
-//   SHA-256 ハッシュで、電話番号そのものをドキュメントIDにしない。
-//   方式B（keep-phones）では日次リセットでも残り、イベント終了時に消去される。
-// - subscribers/{memberId}: プッシュ購読（FCMトークン）。1電話番号につき1購読とし、
-//   再登録はトークンの更新として扱う。日次リセットで両方式とも消去される。
-import { createHash } from 'node:crypto';
+// - 本人確認は端末認証のみ（SMS電話認証は無い）。匿名認証の uid
+//   （端末に保持される識別子）がその人の識別キーになり、電話番号は
+//   一切集めない。登録は「タップで登録」。
+// - members/{memberId}: 本人確認レコード。memberId は端末 uid の
+//   SHA-256 ハッシュ（'device:' 接頭辞付き）で、uid そのものを
+//   ドキュメントIDにしない。方式B（keep-phones）では日次リセットでも
+//   残り、イベント終了時に消去される。
+// - subscribers/{memberId}: プッシュ購読（FCMトークン）。1端末につき
+//   1購読とし、再登録はトークンの更新として扱う。日次リセットで
+//   消去される。
 import { FieldValue } from 'firebase-admin/firestore';
 import { db, messaging } from './firebase-admin';
 import {
@@ -18,12 +20,10 @@ import {
   jstTimeString,
   localeTopic,
 } from './event';
-import { isLocale, normalizeLocale, type Locale } from './i18n';
+import { isLocale, normalizeLocale, SUPPORTED_LOCALES, type Locale } from './i18n';
 import { getEvent } from './event-store';
 
-export function memberIdForPhone(phoneE164: string): string {
-  return createHash('sha256').update(phoneE164.trim()).digest('hex');
-}
+import { memberIdForDevice } from './event-coupon';
 
 export type RegistrationRejection =
   | 'not-live'
@@ -74,9 +74,58 @@ function eventRef(eventId: string) {
   return db.collection('events').doc(eventId);
 }
 
+/**
+ * 言語別 FCM トピックの所属を「その言語のトピックだけ」に揃え直す。
+ *
+ * 配信は全言語のトピックへ送られ、未翻訳の言語には日本語の文面が
+ * そのまま届く。そのため1つのトークンが2つの言語トピックに残ると、
+ * 同じ通知が二重に届く。解除はベストエフォートで、失敗した解除や
+ * トークンの差し替えがあると所属がずれていくので、登録・言語変更の
+ * たびにここで揃え直して自己修復する。
+ *
+ * - previousToken があり現在のトークンと異なる場合、旧トークンは
+ *   全言語のトピックから外す（差し替え前のトークンへ送り続けない）。
+ * - 現在のトークンは、自分の言語以外のトピックから外してから、
+ *   自分の言語のトピックへ登録する。
+ * - 個々の解除・登録の失敗は握りつぶし（警告ログのみ）、呼び出し元の
+ *   登録・言語変更自体は必ず成功させる。
+ */
+async function syncLocaleTopicMembership(
+  eventId: string,
+  token: string,
+  lang: Locale,
+  previousToken?: string,
+): Promise<void> {
+  if (previousToken && previousToken !== token) {
+    for (const locale of SUPPORTED_LOCALES) {
+      try {
+        await messaging.unsubscribeFromTopic(
+          [previousToken],
+          localeTopic(eventId, locale),
+        );
+      } catch (error) {
+        console.warn('[EVENT] 旧トークンのトピック解除をスキップ:', error);
+      }
+    }
+  }
+  for (const locale of SUPPORTED_LOCALES) {
+    if (locale === lang) continue;
+    try {
+      await messaging.unsubscribeFromTopic([token], localeTopic(eventId, locale));
+    } catch (error) {
+      console.warn('[EVENT] トピック解除をスキップ:', error);
+    }
+  }
+  try {
+    await messaging.subscribeToTopic([token], localeTopic(eventId, lang));
+  } catch (error) {
+    console.warn('[EVENT] FCMトピック登録をスキップ:', error);
+  }
+}
+
 export async function registerEventVisitor(
   eventId: string,
-  input: { phoneE164: string; fcmToken: string; lang?: string; now?: Date },
+  input: { deviceUid: string; fcmToken: string; lang?: string; now?: Date },
 ): Promise<RegisterVisitorResult> {
   const event = await getEvent(eventId);
   if (!event) {
@@ -85,7 +134,7 @@ export async function registerEventVisitor(
 
   const now = input.now ?? new Date();
   const today = jstDateString(now);
-  const memberId = memberIdForPhone(input.phoneE164);
+  const memberId = memberIdForDevice(input.deviceUid);
   const subscribersRef = eventRef(eventId).collection(EVENT_SUBCOLLECTIONS.subscribers);
   const membersRef = eventRef(eventId).collection(EVENT_SUBCOLLECTIONS.members);
   const subscriberRef = subscribersRef.doc(memberId);
@@ -109,10 +158,17 @@ export async function registerEventVisitor(
     return { ok: false, status: response.status, error: response.error };
   }
 
+  // 上書きする前に、前回のトークンを控える（トークンが差し替わっていたら
+  // 旧トークンのトピック所属も解除するため）。
+  const previousData = alreadyRegistered ? subscriberSnap.data() : undefined;
+  const previousToken =
+    typeof previousData?.fcmToken === 'string' ? previousData.fcmToken : undefined;
+
   const batch = db.batch();
   if (!memberSnap.exists) {
     batch.set(memberRef, {
-      phone: input.phoneE164,
+      authMethod: 'device',
+      deviceUid: input.deviceUid,
       createdAt: FieldValue.serverTimestamp(),
       lastRegisteredAt: FieldValue.serverTimestamp(),
     });
@@ -121,9 +177,6 @@ export async function registerEventVisitor(
   }
   // 言語は個人の選択を優先し、無ければイベントのデフォルト言語で登録する
   const lang = normalizeLocale(input.lang, event.defaultLocale);
-  const previousLang = alreadyRegistered
-    ? normalizeLocale(subscriberSnap.data()?.lang, event.defaultLocale)
-    : null;
   batch.set(subscriberRef, {
     memberId,
     fcmToken: input.fcmToken,
@@ -133,19 +186,9 @@ export async function registerEventVisitor(
   });
   await batch.commit();
 
-  // 配信は言語別 FCM トピック宛て。失敗しても登録自体は成立させる。
-  // 言語が変わった再登録では、旧言語のトピックから外して付け替える。
-  try {
-    if (previousLang && previousLang !== lang) {
-      await messaging.unsubscribeFromTopic(
-        [input.fcmToken],
-        localeTopic(eventId, previousLang),
-      );
-    }
-    await messaging.subscribeToTopic([input.fcmToken], localeTopic(eventId, lang));
-  } catch (error) {
-    console.warn('[EVENT] FCMトピック登録をスキップ:', error);
-  }
+  // 配信は言語別 FCM トピック宛て。所属を毎回揃え直す（失敗しても
+  // 登録自体は成立させる）。
+  await syncLocaleTopicMembership(eventId, input.fcmToken, lang, previousToken);
 
   return { ok: true, memberId };
 }
@@ -245,12 +288,9 @@ export async function updateSubscriberLanguage(
 
   const token = typeof data.fcmToken === 'string' ? data.fcmToken : '';
   if (token) {
-    try {
-      await messaging.unsubscribeFromTopic([token], localeTopic(eventId, previous));
-      await messaging.subscribeToTopic([token], localeTopic(eventId, lang));
-    } catch (error) {
-      console.warn('[EVENT] 言語変更時のトピック付け替えをスキップ:', error);
-    }
+    // 旧言語だけでなく、自分の言語以外の全トピックから外して揃え直す
+    // （過去に解除が失敗して残っていても、ここで修復される）。
+    await syncLocaleTopicMembership(eventId, token, lang);
   }
   return { ok: true };
 }
