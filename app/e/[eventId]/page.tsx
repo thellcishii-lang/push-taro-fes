@@ -97,12 +97,12 @@ interface EventNotice {
   } | null;
 }
 
-const VIOLET = '#6D28D9';
-const VIOLET_BRIGHT = '#7C3AED';
+const VIOLET = '#0e7fc4';
+const VIOLET_BRIGHT = '#19b8a6';
 const CLAIM_BLUE = '#2563eb';
-const INK = '#17122b';
-const HERO_GRADIENT = 'linear-gradient(135deg, #e7dcfd, #d2c0f8)';
-const CARD_GRADIENT = 'linear-gradient(180deg, #f3efff, #e9e2fd)';
+const INK = '#0f2432';
+const HERO_GRADIENT = 'linear-gradient(135deg, #d8effa, #aedcf2)';
+const CARD_GRADIENT = 'linear-gradient(180deg, #f4fafc, #dff2fa)';
 
 // モックの言語ピルは短い表記（EN など）。選択の保存・送信は従来どおり locale で行う。
 const PILL_LABELS: Record<Locale, string> = {
@@ -175,7 +175,7 @@ function PinLogo() {
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
-        boxShadow: '0 3px 8px rgba(109, 40, 217, 0.35)',
+        boxShadow: '0 3px 8px rgba(14, 127, 196, 0.35)',
       }}
     >
       <svg width="25" height="25" viewBox="0 0 24 24">
@@ -730,7 +730,7 @@ export default function EventVisitorPage() {
           borderRadius: 18,
           padding: '18px 16px',
           marginTop: 14,
-          boxShadow: '0 4px 14px rgba(109, 40, 217, 0.18)',
+          boxShadow: '0 4px 14px rgba(14, 127, 196, 0.18)',
         }}
       >
         <h1 style={{ fontSize: 23, fontWeight: 800, margin: 0, color: INK }}>{event.name}</h1>
@@ -1138,8 +1138,8 @@ export default function EventVisitorPage() {
                       : {
                           marginTop: 12,
                           fontSize: 14,
-                          backgroundColor: '#f5f3ff',
-                          border: '1px solid #ddd6fe',
+                          backgroundColor: '#eef7fb',
+                          border: '1px solid #bfe3f5',
                           borderRadius: 10,
                           padding: '9px 12px',
                         }
@@ -1217,11 +1217,11 @@ export default function EventVisitorPage() {
                     key={claim.claimId}
                     style={{
                       background: CARD_GRADIENT,
-                      border: '1px solid #ddd6fe',
+                      border: '1px solid #bfe3f5',
                       borderRadius: 16,
                       padding: 16,
                       marginTop: 12,
-                      boxShadow: '0 2px 8px rgba(109, 40, 217, 0.12)',
+                      boxShadow: '0 2px 8px rgba(14, 127, 196, 0.12)',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -1402,8 +1402,8 @@ export default function EventVisitorPage() {
                           marginTop: 10,
                           padding: '11px 12px',
                           borderRadius: 12,
-                          border: '1px solid #ddd6fe',
-                          backgroundColor: '#f5f3ff',
+                          border: '1px solid #bfe3f5',
+                          backgroundColor: '#eef7fb',
                           fontWeight: 700,
                           fontSize: 14,
                           color: VIOLET,
@@ -1483,8 +1483,8 @@ export default function EventVisitorPage() {
               style={{
                 marginTop: 10,
                 fontSize: 14,
-                backgroundColor: '#f5f3ff',
-                border: '1px solid #ddd6fe',
+                backgroundColor: '#eef7fb',
+                border: '1px solid #bfe3f5',
                 borderRadius: 10,
                 padding: '9px 12px',
               }}
@@ -1641,7 +1641,7 @@ export default function EventVisitorPage() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 12,
-                boxShadow: '0 8px 22px rgba(109, 40, 217, 0.28)',
+                boxShadow: '0 8px 22px rgba(14, 127, 196, 0.28)',
               }}
             >
               <div

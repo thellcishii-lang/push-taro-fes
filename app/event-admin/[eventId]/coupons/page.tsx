@@ -56,7 +56,7 @@ interface Coupon {
   active: boolean;
 }
 
-const VIOLET = '#6D28D9';
+const VIOLET = '#0e7fc4';
 
 /** 出店者一覧で既定表示する件数（残りはアコーディオンに畳む）。 */
 const EXHIBITOR_PREVIEW_COUNT = 2;
@@ -107,7 +107,7 @@ const primaryButtonStyle: React.CSSProperties = {
   border: 'none',
   borderRadius: 12,
   cursor: 'pointer',
-  boxShadow: '0 4px 12px rgba(109, 40, 217, 0.25)',
+  boxShadow: '0 4px 12px rgba(14, 127, 196, 0.25)',
 };
 
 const sectionTitleStyle: React.CSSProperties = {
@@ -474,7 +474,7 @@ export default function EventCouponAdminPage() {
                     transition: 'background-color 0.5s ease',
                     ...(couponExhibitorFilter === exhibitor.id
                       ? {
-                          backgroundColor: '#F5F3FF',
+                          backgroundColor: '#eef7fb',
                           borderRadius: 8,
                           padding: '11px 10px',
                           margin: '0 -10px',
@@ -482,7 +482,7 @@ export default function EventCouponAdminPage() {
                       : null),
                     ...(highlight?.kind === 'exhibitor' && highlight.id === exhibitor.id
                       ? {
-                          backgroundColor: '#F3EFFF',
+                          backgroundColor: '#f4fafc',
                           borderRadius: 8,
                           padding: '11px 10px',
                           margin: '0 -10px',
@@ -618,11 +618,11 @@ export default function EventCouponAdminPage() {
               justifyContent: 'space-between',
               alignItems: 'center',
               gap: 8,
-              backgroundColor: '#F5F3FF',
-              border: '1px solid #DDD6FE',
+              backgroundColor: '#eef7fb',
+              border: '1px solid #bfe3f5',
             }}
           >
-            <span style={{ fontSize: 13.5, fontWeight: 600, color: '#4C1D95' }}>
+            <span style={{ fontSize: 13.5, fontWeight: 600, color: '#0a5e94' }}>
               {adminText(locale, 'couponFilterLabel', {
                 name: filterExhibitor.name,
                 count: String(visibleCoupons.length),
@@ -663,7 +663,7 @@ export default function EventCouponAdminPage() {
               marginTop: 12,
               transition: 'background-color 0.5s ease, border-color 0.5s ease',
               ...(highlight?.kind === 'coupon' && highlight.id === coupon.id
-                ? { backgroundColor: '#F3EFFF', borderColor: VIOLET }
+                ? { backgroundColor: '#f4fafc', borderColor: VIOLET }
                 : null),
             }}
           >

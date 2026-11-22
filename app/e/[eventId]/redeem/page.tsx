@@ -55,8 +55,8 @@ interface RedeemResult {
   at: Date;
 }
 
-const VIOLET = '#6D28D9';
-const VIOLET_BRIGHT = '#7C3AED';
+const VIOLET = '#0e7fc4';
+const VIOLET_BRIGHT = '#19b8a6';
 
 // モックの言語セグメントは短い表記（EN など）。保存・送信は従来どおり locale で行う。
 const PILL_LABELS: Record<Locale, string> = {
@@ -118,7 +118,7 @@ const scanButtonStyle: React.CSSProperties = {
   border: 'none',
   borderRadius: 14,
   cursor: 'pointer',
-  boxShadow: '0 4px 14px rgba(109, 40, 217, 0.35)',
+  boxShadow: '0 4px 14px rgba(14, 127, 196, 0.35)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -766,7 +766,7 @@ export default function ExhibitorRedeemPage() {
                     width: 50,
                     height: 50,
                     borderRadius: '50%',
-                    backgroundColor: '#ede9fe',
+                    backgroundColor: '#eef7fb',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -780,7 +780,7 @@ export default function ExhibitorRedeemPage() {
                     />
                     <path
                       d="M13.5 7v2M13.5 11v2M13.5 15v2"
-                      stroke="#ede9fe"
+                      stroke="#eef7fb"
                       strokeWidth="1.6"
                       strokeLinecap="round"
                       strokeDasharray="0.1 3.1"

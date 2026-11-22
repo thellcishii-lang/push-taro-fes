@@ -106,7 +106,7 @@ function toForm(event: EventConfig): EventForm {
   };
 }
 
-const VIOLET = '#6D28D9';
+const VIOLET = '#0e7fc4';
 
 // 契約まわりの手続きは本家の EVENT 専用契約ページ（push-taro.com/event-account）。
 const HONKE_SHOP_URL = 'https://push-taro.com/event-account';
@@ -157,7 +157,7 @@ const primaryButtonStyle: React.CSSProperties = {
   border: 'none',
   borderRadius: 12,
   cursor: 'pointer',
-  boxShadow: '0 4px 12px rgba(109, 40, 217, 0.25)',
+  boxShadow: '0 4px 12px rgba(14, 127, 196, 0.25)',
 };
 
 const logoutButtonStyle: React.CSSProperties = {
@@ -193,7 +193,7 @@ const cardActionSolidStyle: React.CSSProperties = {
   ...cardActionBaseStyle,
   backgroundColor: VIOLET,
   color: '#ffffff',
-  boxShadow: '0 3px 10px rgba(109, 40, 217, 0.25)',
+  boxShadow: '0 3px 10px rgba(14, 127, 196, 0.25)',
 };
 
 const cardActionOutlineStyle: React.CSSProperties = {
@@ -581,8 +581,8 @@ export default function EventAdminPage() {
           ...cardStyle,
           marginTop: 16,
           padding: '16px 20px',
-          backgroundColor: '#F5F3FF',
-          border: '1px solid #DDD6FE',
+          backgroundColor: '#eef7fb',
+          border: '1px solid #bfe3f5',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -657,7 +657,7 @@ export default function EventAdminPage() {
                   position: 'relative',
                   padding: '22px 20px 18px',
                   ...(event.id === selectedId
-                    ? { border: '2px solid #6D28D9' }
+                    ? { border: '2px solid #0e7fc4' }
                     : null),
                 }}
               >
@@ -734,7 +734,7 @@ export default function EventAdminPage() {
                           ? '#DC2626'
                           : usage.level === 'warning'
                             ? '#F59E0B'
-                            : '#7C3AED';
+                            : '#19b8a6';
                       return (
                         <div style={{ marginTop: 10 }}>
                           <div
@@ -759,7 +759,7 @@ export default function EventAdminPage() {
                             style={{
                               height: 8,
                               borderRadius: 999,
-                              backgroundColor: '#EDE9FE',
+                              backgroundColor: '#eef7fb',
                               overflow: 'hidden',
                               marginTop: 6,
                             }}

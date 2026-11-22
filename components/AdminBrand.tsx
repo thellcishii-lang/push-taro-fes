@@ -4,7 +4,7 @@
 // 「Push-taro FES / ORGANIZER CONSOLE」の2段表記を全管理画面で揃える。
 import type { ReactNode } from 'react';
 
-export const ADMIN_VIOLET = '#6D28D9';
+export const ADMIN_VIOLET = '#0e7fc4';
 export const ADMIN_PAGE_BG = '#EEECF6';
 export const ADMIN_CARD_BORDER = '#EAE7F5';
 export const ADMIN_CARD_SHADOW = '0 2px 12px rgba(60, 30, 120, 0.07)';
