@@ -259,7 +259,6 @@ export default function EventDashboardPage() {
     { href: `/event-admin/${eventId}/push`, label: adminText(locale, 'navPush') },
     { href: `/event-admin/${eventId}/schedule`, label: adminText(locale, 'navSchedule') },
     { href: `/event-admin/${eventId}/coupons`, label: adminText(locale, 'navCoupons') },
-    { href: `/event-admin/${eventId}/billing`, label: adminText(locale, 'navBilling') },
     { href: `/event-admin/${eventId}/settings`, label: adminText(locale, 'navConfig') },
   ];
 

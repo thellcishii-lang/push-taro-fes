@@ -33,7 +33,6 @@ export interface ProvisionOrganizerInput {
   /** 使用開始日（決済完了日, 'YYYY-MM-DD'）。新規作成時のみ使う */
   startDate: string;
   subscriberCap?: number;
-  couponCap?: number;
   /**
    * 一時的な枠上げの期限（ISO日付文字列）。任意項目:
    * 送られなければ既存値を変えない。null は明示的なクリア。
@@ -43,12 +42,6 @@ export interface ProvisionOrganizerInput {
   /** 一時上げの期限後に戻る購読者枠。任意項目（意味は上と同じ）。 */
   restoredSubscriberCap?: number | null;
   agencyCode?: string | null;
-  /**
-   * 出店者課金オプションの ON/OFF。任意項目:
-   * boolean が送られた場合だけ反映し、送られなければ既存値を変えない。
-   * boolean 以外は無視する。
-   */
-  billingOptionEnabled?: boolean;
 }
 
 export type ProvisionOrganizerResult =
@@ -110,10 +103,8 @@ export function buildProvisioningUpdate(
     | 'address'
     | 'phone'
     | 'subscriberCap'
-    | 'couponCap'
     | 'tempSubscriberCapUntil'
     | 'restoredSubscriberCap'
-    | 'billingOptionEnabled'
   >,
 ): ProvisioningProfilePatch {
   const patch: ProvisioningProfilePatch = {};
@@ -125,17 +116,10 @@ export function buildProvisioningUpdate(
   if (typeof input.subscriberCap === 'number' && Number.isFinite(input.subscriberCap)) {
     patch.subscriberCap = input.subscriberCap;
   }
-  if (typeof input.couponCap === 'number' && Number.isFinite(input.couponCap)) {
-    patch.couponCap = input.couponCap;
-  }
   const tempUntil = sanitizeTempSubscriberCapUntil(input.tempSubscriberCapUntil);
   if (tempUntil !== undefined) patch.tempSubscriberCapUntil = tempUntil;
   const restoredCap = sanitizeRestoredSubscriberCap(input.restoredSubscriberCap);
   if (restoredCap !== undefined) patch.restoredSubscriberCap = restoredCap;
-  // 出店者課金オプションは boolean が送られた場合だけ反映する。
-  if (typeof input.billingOptionEnabled === 'boolean') {
-    patch.billingOptionEnabled = input.billingOptionEnabled;
-  }
   return patch;
 }
 
@@ -193,11 +177,10 @@ export async function provisionOrganizer(
     // 枠が変わったら、終わっていないイベント（下書き・開催中）にも
     // 同じ枠を伝播させる。終了済みイベントの枠は履歴として触らない。
     // 伝播の失敗で更新自体を失敗にはしない（失敗はログに残す）。
-    if (patch.subscriberCap !== undefined || patch.couponCap !== undefined) {
+    if (patch.subscriberCap !== undefined) {
       try {
         const propagation = await propagateCapsToOwnerEvents(existing!.ownerUid!, {
           subscriberCap: patch.subscriberCap,
-          couponCap: patch.couponCap,
         });
         if (propagation.failed.length > 0) {
           await logProvisioning({
@@ -252,15 +235,12 @@ export async function provisionOrganizer(
     phone: input.phone ?? '',
     startDate: input.startDate,
     subscriberCap: input.subscriberCap,
-    couponCap: input.couponCap,
     // 一時上げまわりの任意項目は、無害化した値だけを保持する。
     tempSubscriberCapUntil:
       sanitizeTempSubscriberCapUntil(input.tempSubscriberCapUntil) ?? null,
     restoredSubscriberCap:
       sanitizeRestoredSubscriberCap(input.restoredSubscriberCap) ?? null,
     agencyCode: input.agencyCode ?? null,
-    // 出店者課金オプションは boolean のときだけ有効として保存（それ以外は無効）。
-    billingOptionEnabled: input.billingOptionEnabled === true,
     // 初期パスワードは初回ログインで必ず変更させる。
     mustChangePassword: true,
   };

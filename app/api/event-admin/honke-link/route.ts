@@ -2,16 +2,15 @@
 /**
  * 本家の契約ページ / クーポン購入ページへのハンドオフリンクを発行する。
  *
- * POST { purpose: 'account' | 'coupon-option', eventId? }
+ * POST { purpose: 'account', eventId? }
  * - ログイン中主催者の契約（organizers の ownerUid 引き）だけを対象にする
- * - coupon-option の場合は対象イベントの所有も確認する
  *   （requireEventOwner: 初回パスワード変更ブロック含む）
  * - 共有シークレット HONKE_HANDOFF_SECRET が未設定なら 503 を返し、
  *   クライアントは通常リンク（パスワードログイン）にフォールバックする
  */
 
 import { NextResponse } from 'next/server';
-import { getUidFromRequest, requireEventOwner } from '@/lib/event-auth';
+import { getUidFromRequest } from '@/lib/event-auth';
 import { findOrganizerByOwnerUid } from '@/lib/organizers';
 import {
   buildHonkeHandoffUrl,
@@ -36,7 +35,7 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'リクエストが不正です' }, { status: 400 });
   }
-  if (purpose !== 'account' && purpose !== 'coupon-option') {
+  if (purpose !== 'account') {
     return NextResponse.json({ error: 'purpose が不正です' }, { status: 400 });
   }
 
@@ -47,14 +46,6 @@ export async function POST(request: Request) {
   const organizer = await findOrganizerByOwnerUid(uid);
   if (!organizer) {
     return NextResponse.json({ error: '契約が見つかりません' }, { status: 404 });
-  }
-
-  if (purpose === 'coupon-option') {
-    if (typeof eventId !== 'string' || eventId === '') {
-      return NextResponse.json({ error: 'eventId が必要です' }, { status: 400 });
-    }
-    const ownership = await requireEventOwner(request, eventId);
-    if ('error' in ownership) return ownership.error;
   }
 
   const url = buildHonkeHandoffUrl(

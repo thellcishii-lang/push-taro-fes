@@ -24,9 +24,8 @@ describe('buildProvisioningUpdate', () => {
       buildProvisioningUpdate({
         companyName: '',
         subscriberCap: 100000,
-        couponCap: 200,
       }),
-    ).toEqual({ subscriberCap: 100000, couponCap: 200 });
+    ).toEqual({ subscriberCap: 100000 });
   });
   it('会社情報が送られれば含める', () => {
     expect(
@@ -99,25 +98,6 @@ describe('buildProvisioningUpdate', () => {
     });
   });
 
-  describe('課金オプション（billingOptionEnabled）', () => {
-    it('boolean が送られれば含める（true / false 両方）', () => {
-      expect(
-        buildProvisioningUpdate({ companyName: '', billingOptionEnabled: true }),
-      ).toEqual({ billingOptionEnabled: true });
-      expect(
-        buildProvisioningUpdate({ companyName: '', billingOptionEnabled: false }),
-      ).toEqual({ billingOptionEnabled: false });
-    });
-    it('送られなければ含めない（既存値を変えない）', () => {
-      expect(buildProvisioningUpdate({ companyName: '' })).toEqual({});
-      expect(
-        buildProvisioningUpdate({
-          companyName: '',
-          billingOptionEnabled: undefined,
-        }),
-      ).toEqual({});
-    });
-  });
 });
 
 const createInput = (overrides: Partial<ProvisionOrganizerInput> = {}): ProvisionOrganizerInput => ({

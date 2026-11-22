@@ -47,11 +47,9 @@ export async function PATCH(
 
   const patch: {
     subscriberCap?: number;
-    couponCap?: number;
     status?: OrganizerStatus;
-    billingOptionEnabled?: boolean;
   } = {};
-  for (const field of ['subscriberCap', 'couponCap'] as const) {
+  for (const field of ['subscriberCap'] as const) {
     const value = body[field];
     if (value !== undefined) {
       if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
@@ -71,15 +69,6 @@ export async function PATCH(
       );
     }
     patch.status = body.status;
-  }
-  if (body.billingOptionEnabled !== undefined) {
-    if (typeof body.billingOptionEnabled !== 'boolean') {
-      return NextResponse.json(
-        { error: 'billingOptionEnabled は真偽値で指定してください' },
-        { status: 400 },
-      );
-    }
-    patch.billingOptionEnabled = body.billingOptionEnabled;
   }
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: '変更項目がありません' }, { status: 400 });

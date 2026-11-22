@@ -1,12 +1,11 @@
 // app/api/events/[eventId]/coupons/public/route.test.ts
-// 来場者向けクーポンカタログ: 課金停止中（billingSuspended）の出店者の
-// クーポンはサーバー側で除外され、クライアントに渡らないことを検証する。
+// 来場者向けクーポンカタログ: 有効（active）なクーポンだけが返り、
+// 非公開のクーポンはクライアントに渡らないことを検証する。
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   getEvent: vi.fn(),
   listCoupons: vi.fn(),
-  listExhibitors: vi.fn(),
 }));
 
 vi.mock('@/lib/event-store', () => ({
@@ -18,7 +17,6 @@ vi.mock('@/lib/event-coupon', async (importOriginal) => {
   return {
     ...actual,
     listCoupons: mocks.listCoupons,
-    listExhibitors: mocks.listExhibitors,
   };
 });
 
@@ -54,29 +52,14 @@ beforeEach(() => {
     coupon('c2', 'shop-2'),
     coupon('c3', 'shop-1', false),
   ]);
-  mocks.listExhibitors.mockResolvedValue([
-    { id: 'shop-1', name: '出店者A', email: 'a@example.com', billingSuspended: false },
-    { id: 'shop-2', name: '出店者B', email: 'b@example.com', billingSuspended: true },
-  ]);
 });
 
-describe('GET /api/events/[eventId]/coupons/public（課金停止の除外）', () => {
-  it('停止中出店者のクーポンはカタログから消え、停止していない店の分だけ返る', async () => {
+describe('GET /api/events/[eventId]/coupons/public', () => {
+  it('有効なクーポンだけが返り、非公開のクーポンは返らない', async () => {
     const res = await GET(request(), params());
     expect(res.status).toBe(200);
     const body = await res.json();
     const ids = body.coupons.map((c: { id: string }) => c.id);
-    expect(ids).toEqual(['c1']); // c2 は停止中、c3 は非公開
-  });
-
-  it('誰も停止していなければ従来どおり有効なクーポン全件が返る', async () => {
-    mocks.listExhibitors.mockResolvedValue([
-      { id: 'shop-1', name: '出店者A', email: 'a@example.com', billingSuspended: false },
-      { id: 'shop-2', name: '出店者B', email: 'b@example.com', billingSuspended: false },
-    ]);
-    const res = await GET(request(), params());
-    const body = await res.json();
-    const ids = body.coupons.map((c: { id: string }) => c.id);
-    expect(ids).toEqual(['c1', 'c2']);
+    expect(ids).toEqual(['c1', 'c2']); // c3 は非公開
   });
 });

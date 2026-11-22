@@ -45,13 +45,6 @@ export interface Organizer {
   restoredSubscriberCap: number | null;
   /** 代理店コード（保持のみ。集計は本家側） */
   agencyCode: string | null;
-  /**
-   * 出店者課金オプション（別料金）が有効かどうか。既定は無効（false）。
-   * 有効な契約でのみ、出店者課金の画面・API・掲載停止ロジックが動く。
-   * 設定はプロビジョニング（本家接続）または運営側の変更で行う。
-   * 旧レコード（フィールド自体が無い）は false 扱い。
-   */
-  billingOptionEnabled: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -75,7 +68,6 @@ function toOrganizer(id: string, data: FirebaseFirestore.DocumentData): Organize
     restoredSubscriberCap:
       typeof data.restoredSubscriberCap === 'number' ? data.restoredSubscriberCap : null,
     agencyCode: (data.agencyCode as string | null) ?? null,
-    billingOptionEnabled: data.billingOptionEnabled === true,
     createdAt: data.createdAt?.toDate?.().toISOString() ?? '',
     updatedAt: data.updatedAt?.toDate?.().toISOString() ?? '',
   };
@@ -143,9 +135,7 @@ export async function updateOrganizer(
   contractId: string,
   patch: {
     subscriberCap?: number;
-    couponCap?: number;
     status?: OrganizerStatus;
-    billingOptionEnabled?: boolean;
   },
 ): Promise<boolean> {
   const ref = db.collection(ORGANIZERS_COLLECTION).doc(contractId);
@@ -168,7 +158,6 @@ export interface CreateOrganizerData {
   restoredSubscriberCap?: number | null;
   agencyCode?: string | null;
   mustChangePassword?: boolean;
-  billingOptionEnabled?: boolean;
 }
 
 export async function createOrganizerRecord(
@@ -192,7 +181,6 @@ export async function createOrganizerRecord(
       tempSubscriberCapUntil: data.tempSubscriberCapUntil ?? null,
       restoredSubscriberCap: data.restoredSubscriberCap ?? null,
       agencyCode: data.agencyCode ?? null,
-      billingOptionEnabled: data.billingOptionEnabled ?? false,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -215,13 +203,10 @@ export interface ProvisioningProfilePatch {
   address?: string;
   phone?: string;
   subscriberCap?: number;
-  couponCap?: number;
   /** 一時上げの期限。null は「一時上げなし」への明示的なクリア */
   tempSubscriberCapUntil?: string | null;
   /** 一時上げ後に戻る購読者枠。null は明示的なクリア */
   restoredSubscriberCap?: number | null;
-  /** 出店者課金オプションの ON/OFF。送られた場合だけ反映する */
-  billingOptionEnabled?: boolean;
 }
 
 /**
