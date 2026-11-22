@@ -4,6 +4,7 @@
 // 予約配信は event-tick（15分スケジューラ）が到期分を実行する。
 import { NextResponse } from 'next/server';
 import { requireEventOwner } from '@/lib/event-auth';
+import { getEvent } from '@/lib/event-store';
 import {
   createCampaignRecord,
   executeCampaign,
@@ -54,6 +55,23 @@ export async function POST(
   }
   const attachment = parsedAttachment.attachment;
 
+  // 配信先チャンネル（セグメント）。未指定は全体配信。
+  // 指定された場合はイベントに実在するチャンネルだけを許可する。
+  let channelId: string | null = null;
+  let channelName: string | null = null;
+  if (typeof body.channelId === 'string' && body.channelId) {
+    const event = await getEvent(eventId);
+    const channel = event?.channels.find((c) => c.id === body.channelId);
+    if (!channel) {
+      return NextResponse.json(
+        { error: '指定されたセグメントが見つかりません' },
+        { status: 400 },
+      );
+    }
+    channelId = channel.id;
+    channelName = channel.name;
+  }
+
   const now = new Date();
   const nowJst = jstDateTimeString(now);
   const scheduledAt = typeof body.scheduledAt === 'string' ? body.scheduledAt : '';
@@ -80,6 +98,8 @@ export async function POST(
         scheduledAt,
         ownerUid: guard.uid,
         attachment,
+        channelId,
+        channelName,
       });
       return NextResponse.json({ campaign }, { status: 201 });
     }
@@ -92,6 +112,8 @@ export async function POST(
       scheduledAt: nowJst,
       ownerUid: guard.uid,
       attachment,
+      channelId,
+      channelName,
     });
     const result = await executeCampaign(eventId, campaign.id);
     const executed = await getCampaign(eventId, campaign.id);

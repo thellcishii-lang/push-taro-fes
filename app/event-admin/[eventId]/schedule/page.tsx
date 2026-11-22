@@ -51,6 +51,7 @@ interface Campaign {
   sentCount: number | null;
   error: string | null;
   attachment: CampaignAttachment | null;
+  channelName: string | null;
 }
 
 /** 添付できるファイル種別（MIME → 拡張子）。サーバー側の検証と同じ範囲にそろえる。 */
@@ -166,6 +167,8 @@ export default function EventScheduleAdminPage() {
   const [attachmentUploading, setAttachmentUploading] = useState(false);
   const [attachmentError, setAttachmentError] = useState('');
   const [eventName, setEventName] = useState('');
+  const [channels, setChannels] = useState<Array<{ id: string; name: string }>>([]);
+  const [targetChannelId, setTargetChannelId] = useState('');
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [message, setMessage] = useState('');
   const [formMessage, setFormMessage] = useState('');
@@ -222,6 +225,7 @@ export default function EventScheduleAdminPage() {
     try {
       const data = await callApi(`/api/events/${eventId}`);
       if (typeof data.event?.name === 'string') setEventName(data.event.name);
+      if (Array.isArray(data.event?.channels)) setChannels(data.event.channels);
     } catch {
       // ナビに名前が出ないだけ
     }
@@ -291,6 +295,7 @@ export default function EventScheduleAdminPage() {
           body: form.body,
           scheduledAt: `${form.date}T${form.time}`,
           attachment,
+          channelId: targetChannelId || undefined,
         }),
       });
       setFormMessage(adminText(locale, 'scheduledMessage', { date: form.date, time: form.time }));
@@ -375,6 +380,23 @@ export default function EventScheduleAdminPage() {
           {adminText(locale, 'bodyLabel')}
           <textarea style={{ ...inputStyle, minHeight: 72 }} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} />
         </label>
+        {channels.length > 0 && (
+          <label style={labelStyle}>
+            {adminText(locale, 'pushTargetLabel')}
+            <select
+              style={inputStyle}
+              value={targetChannelId}
+              onChange={(e) => setTargetChannelId(e.target.value)}
+            >
+              <option value="">{adminText(locale, 'pushTargetAll')}</option>
+              {channels.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <div style={{ marginBottom: 12 }}>
           <span style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>
             {adminText(locale, 'attachmentLabel')}
@@ -475,7 +497,10 @@ export default function EventScheduleAdminPage() {
         {scheduled.map((campaign) => (
           <article key={campaign.id} style={{ ...cardStyle, padding: '18px 20px', marginTop: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>{campaign.title}</div>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>
+                {campaign.title}
+                {campaign.channelName ? `（${campaign.channelName}）` : ''}
+              </div>
               <span
                 style={{
                   display: 'inline-block',
@@ -520,7 +545,10 @@ export default function EventScheduleAdminPage() {
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>{campaign.title}</div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>
+                    {campaign.title}
+                    {campaign.channelName ? `（${campaign.channelName}）` : ''}
+                  </div>
                     {badge && <span style={badge.style}>{adminText(locale, badge.key)}</span>}
                   </div>
                   <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>

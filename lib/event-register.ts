@@ -16,6 +16,7 @@ import { db, messaging } from './firebase-admin';
 import {
   EVENT_SUBCOLLECTIONS,
   EventConfig,
+  channelTopic,
   jstDateString,
   jstTimeString,
   localeTopic,
@@ -123,9 +124,39 @@ async function syncLocaleTopicMembership(
   }
 }
 
+export async function syncChannelTopicMembership(
+  eventId: string,
+  token: string,
+  lang: Locale,
+  selectedIds: readonly string[],
+  allIds: readonly string[],
+): Promise<void> {
+  const selected = new Set(selectedIds);
+  for (const channelId of allIds) {
+    for (const locale of SUPPORTED_LOCALES) {
+      const topic = channelTopic(eventId, channelId, locale);
+      try {
+        if (selected.has(channelId) && locale === lang) {
+          await messaging.subscribeToTopic([token], topic);
+        } else {
+          await messaging.unsubscribeFromTopic([token], topic);
+        }
+      } catch (error) {
+        console.warn('[FES] チャンネルトピック同期をスキップ:', error);
+      }
+    }
+  }
+}
+
 export async function registerEventVisitor(
   eventId: string,
-  input: { deviceUid: string; fcmToken: string; lang?: string; now?: Date },
+  input: {
+    deviceUid: string;
+    fcmToken: string;
+    lang?: string;
+    channelIds?: string[];
+    now?: Date;
+  },
 ): Promise<RegisterVisitorResult> {
   const event = await getEvent(eventId);
   if (!event) {
@@ -163,6 +194,17 @@ export async function registerEventVisitor(
   const previousData = alreadyRegistered ? subscriberSnap.data() : undefined;
   const previousToken =
     typeof previousData?.fcmToken === 'string' ? previousData.fcmToken : undefined;
+  // チャンネル選択: 登録時に指定があればそれを、無ければ前回の選択を引き継ぐ。
+  // どちらもイベントに実在するチャンネルだけに絞る。
+  const validChannelIds = new Set(event.channels.map((c) => c.id));
+  const requestedChannels = Array.isArray(input.channelIds)
+    ? input.channelIds
+    : Array.isArray(previousData?.channels)
+      ? (previousData.channels as unknown[])
+      : [];
+  const selectedChannels = requestedChannels.filter(
+    (id): id is string => typeof id === 'string' && validChannelIds.has(id),
+  );
 
   const batch = db.batch();
   if (!memberSnap.exists) {
@@ -181,6 +223,7 @@ export async function registerEventVisitor(
     memberId,
     fcmToken: input.fcmToken,
     lang,
+    channels: selectedChannels,
     registeredDate: today,
     updatedAt: FieldValue.serverTimestamp(),
   });
@@ -189,6 +232,15 @@ export async function registerEventVisitor(
   // 配信は言語別 FCM トピック宛て。所属を毎回揃え直す（失敗しても
   // 登録自体は成立させる）。
   await syncLocaleTopicMembership(eventId, input.fcmToken, lang, previousToken);
+  if (event.channels.length > 0) {
+    await syncChannelTopicMembership(
+      eventId,
+      input.fcmToken,
+      lang,
+      selectedChannels,
+      event.channels.map((c) => c.id),
+    );
+  }
 
   return { ok: true, memberId };
 }
@@ -291,6 +343,82 @@ export async function updateSubscriberLanguage(
     // 旧言語だけでなく、自分の言語以外の全トピックから外して揃え直す
     // （過去に解除が失敗して残っていても、ここで修復される）。
     await syncLocaleTopicMembership(eventId, token, lang);
+    // チャンネルのトピックも言語ごとに分かれているため、付け替える
+    if (event.channels.length > 0) {
+      const stored = Array.isArray(data.channels) ? (data.channels as unknown[]) : [];
+      const selected = stored.filter(
+        (id): id is string =>
+          typeof id === 'string' && event.channels.some((c) => c.id === id),
+      );
+      await syncChannelTopicMembership(
+        eventId,
+        token,
+        lang,
+        selected,
+        event.channels.map((c) => c.id),
+      );
+    }
   }
   return { ok: true };
+}
+
+export type UpdateChannelsResult =
+  | { ok: true; channels: string[] }
+  | { ok: false; status: number; error: string };
+
+/**
+ * 登録済み購読者のチャンネル選択を変更する（来場者画面の配信設定から呼ぶ）。
+ * 購読者レコードの channels と、チャンネル別 FCM トピックの付け替えを一緒に行う。
+ */
+export async function updateSubscriberChannels(
+  eventId: string,
+  memberId: string,
+  channelIds: string[],
+): Promise<UpdateChannelsResult> {
+  const event = await getEvent(eventId);
+  if (!event) {
+    return { ok: false, status: 404, error: 'イベントが見つかりません' };
+  }
+  const ref = eventRef(eventId)
+    .collection(EVENT_SUBCOLLECTIONS.subscribers)
+    .doc(memberId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    return { ok: false, status: 404, error: '登録が見つかりません' };
+  }
+  const data = snap.data() ?? {};
+  const validIds = new Set(event.channels.map((c) => c.id));
+  const selected = channelIds.filter((id) => validIds.has(id));
+  await ref.update({
+    channels: selected,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  const token = typeof data.fcmToken === 'string' ? data.fcmToken : '';
+  if (token && event.channels.length > 0) {
+    const lang = normalizeLocale(data.lang, event.defaultLocale);
+    await syncChannelTopicMembership(
+      eventId,
+      token,
+      lang,
+      selected,
+      event.channels.map((c) => c.id),
+    );
+  }
+  return { ok: true, channels: selected };
+}
+
+/** 購読者のチャンネル選択を読む（未登録・未選択は空配列）。 */
+export async function getSubscriberChannels(
+  eventId: string,
+  memberId: string,
+): Promise<string[]> {
+  const snap = await eventRef(eventId)
+    .collection(EVENT_SUBCOLLECTIONS.subscribers)
+    .doc(memberId)
+    .get();
+  if (!snap.exists) return [];
+  const stored = snap.data()?.channels;
+  return Array.isArray(stored)
+    ? stored.filter((id): id is string => typeof id === 'string')
+    : [];
 }

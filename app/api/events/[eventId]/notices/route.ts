@@ -48,7 +48,17 @@ export async function GET(
     ? langParam
     : resolveLocale(subscriberSnap.data()?.lang, event.defaultLocale);
 
+  const storedChannels = subscriberSnap.data()?.channels;
+  const memberChannels = Array.isArray(storedChannels)
+    ? storedChannels.filter((id): id is string => typeof id === 'string')
+    : [];
   const campaigns = await listCampaigns(eventId);
-  const notices = buildNotices(campaigns, locale, event.defaultLocale);
+  const notices = buildNotices(
+    campaigns,
+    locale,
+    event.defaultLocale,
+    undefined,
+    memberChannels,
+  );
   return NextResponse.json({ notices });
 }

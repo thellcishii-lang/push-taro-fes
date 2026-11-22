@@ -27,6 +27,7 @@ export async function GET(
       admissionQrEnabled: event.admissionQrEnabled,
       // 主催者リンク（最大3件、タイトル付きで来場者画面に表示する）
       links: event.links,
+      channels: event.channels,
     },
   });
 }
