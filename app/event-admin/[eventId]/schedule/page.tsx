@@ -360,7 +360,7 @@ export default function EventScheduleAdminPage() {
       email={user.email}
       onLogout={() => void signOut(auth)}
       languageSelect={<AdminLanguageSelect locale={locale} onChange={setLocale} />}
-      nav={<AdminNav eventId={eventId} eventName={eventName} current="②" locale={locale} />}
+      nav={<AdminNav eventId={eventId} eventName={eventName} current="③" locale={locale} />}
     >
       <h1 style={adminPageTitleStyle}>{adminText(locale, 'schedulePageTitle')}</h1>
       <CapWarningBanner locale={locale} />

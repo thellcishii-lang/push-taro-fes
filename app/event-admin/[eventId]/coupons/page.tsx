@@ -413,7 +413,7 @@ export default function EventCouponAdminPage() {
       email={user.email}
       onLogout={() => void signOut(auth)}
       languageSelect={<AdminLanguageSelect locale={locale} onChange={setLocale} />}
-      nav={<AdminNav eventId={eventId} eventName={eventName} current="③" locale={locale} />}
+      nav={<AdminNav eventId={eventId} eventName={eventName} current="④" locale={locale} />}
     >
       <h1 style={adminPageTitleStyle}>{adminText(locale, 'couponsPageTitle')}</h1>
       <CapWarningBanner locale={locale} />

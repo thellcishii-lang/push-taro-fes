@@ -256,6 +256,7 @@ export default function EventDashboardPage() {
     : '#19b8a6';
 
   const quickLinks: Array<{ href: string; label: string }> = [
+    { href: `/event-admin/${eventId}/timetable`, label: adminText(locale, 'navTimetable') },
     { href: `/event-admin/${eventId}/push`, label: adminText(locale, 'navPush') },
     { href: `/event-admin/${eventId}/schedule`, label: adminText(locale, 'navSchedule') },
     { href: `/event-admin/${eventId}/coupons`, label: adminText(locale, 'navCoupons') },

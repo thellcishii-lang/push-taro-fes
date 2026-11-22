@@ -43,7 +43,7 @@ export function resetTargets(
   mode: EventResetMode,
   kind: 'daily' | 'finalize',
 ): EventSubcollection[] {
-  if (kind === 'finalize') return [...ALL_SUBCOLLECTIONS];
+  if (kind === 'finalize') return [...ALL_SUBCOLLECTIONS, EVENT_SUBCOLLECTIONS.timetable];
   // 日次リセット
   if (mode === 'full-daily') return [...ALL_SUBCOLLECTIONS];
   // keep-phones: 端末情報と取得・消込記録は期間中保持し、購読だけ毎日リセット

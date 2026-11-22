@@ -12,10 +12,10 @@ const report: EventFinalReport = {
   periodStart: '2026-11-07',
   periodEnd: '2026-11-08',
   dailyStats: [
-    { date: '2026-11-07', subscribers: 1200, members: 1200, claims: 300, redemptions: 210 },
-    { date: '2026-11-08', subscribers: 2500, members: 2500, claims: 640, redemptions: 480 },
+    { date: '2026-11-07', subscribers: 1200, members: 1200, claims: 300, redemptions: 210, timetable: 0 },
+    { date: '2026-11-08', subscribers: 2500, members: 2500, claims: 640, redemptions: 480, timetable: 0 },
   ],
-  finalCounts: { subscribers: 2500, members: 2500, claims: 640, redemptions: 480 },
+  finalCounts: { subscribers: 2500, members: 2500, claims: 640, redemptions: 480, timetable: 12 },
   campaignSends: [
     { campaignId: 'c1', title: '開場のお知らせ', sentCount: 1200, sentAt: '2026-11-07T00:00:00.000Z' },
     { campaignId: 'c2', title: '午後の見どころ', sentCount: 2500, sentAt: '2026-11-08T03:00:00.000Z' },

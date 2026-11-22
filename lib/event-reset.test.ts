@@ -21,12 +21,13 @@ describe('resetTargets', () => {
     ]);
   });
 
-  it('終了処理は方式によらず全サブコレクションを消す（電話番号消去）', () => {
+  it('終了処理は方式によらず全サブコレクションを消す（登録情報消去）', () => {
     const all = [
       EVENT_SUBCOLLECTIONS.subscribers,
       EVENT_SUBCOLLECTIONS.members,
       EVENT_SUBCOLLECTIONS.claims,
       EVENT_SUBCOLLECTIONS.redemptions,
+      EVENT_SUBCOLLECTIONS.timetable,
     ];
     expect(resetTargets('full-daily', 'finalize')).toEqual(all);
     expect(resetTargets('keep-phones', 'finalize')).toEqual(all);
