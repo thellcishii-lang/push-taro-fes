@@ -47,7 +47,7 @@ describe('uiText', () => {
     expect(uiText('ja', 'period', { start: '2026-11-10', end: '2026-11-12' })).toBe(
       '開催期間: 2026-11-10 〜 2026-11-12',
     );
-    expect(uiText('en', 'sendCodeFailed', { code: 'auth/x' })).toContain('auth/x');
+    expect(uiText('en', 'couponCount', { count: '3' })).toBe('3 coupons');
   });
   it('型の外のキーは存在しない（網羅性は satisfies で担保）', () => {
     const keys = Object.keys(UI_TEXT) as UiTextKey[];

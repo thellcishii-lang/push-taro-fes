@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   evaluateRegistration,
   isCurrentSubscriber,
-  memberIdForPhone,
   registrationScopeStartDate,
 } from './event-register';
+import { memberIdForDevice } from './event-coupon';
 
 const baseEvent = {
   status: 'live' as const,
@@ -14,15 +14,15 @@ const baseEvent = {
   subscriberCap: 50_000,
 };
 
-describe('memberIdForPhone', () => {
-  it('同じ電話番号からは同じIDが得られる', () => {
-    expect(memberIdForPhone('+819012345678')).toBe(memberIdForPhone('+819012345678'));
+describe('memberIdForDevice', () => {
+  it('同じ端末からは同じIDが得られる', () => {
+    expect(memberIdForDevice('anon-uid-1')).toBe(memberIdForDevice('anon-uid-1'));
   });
-  it('異なる電話番号では異なるIDになる', () => {
-    expect(memberIdForPhone('+819012345678')).not.toBe(memberIdForPhone('+819087654321'));
+  it('異なる端末では異なるIDになる', () => {
+    expect(memberIdForDevice('anon-uid-1')).not.toBe(memberIdForDevice('anon-uid-2'));
   });
-  it('電話番号そのものはIDに含まれない', () => {
-    expect(memberIdForPhone('+819012345678')).not.toContain('9012345678');
+  it('端末の識別子そのものはIDに含まれない', () => {
+    expect(memberIdForDevice('anon-uid-1')).not.toContain('anon-uid-1');
   });
 });
 

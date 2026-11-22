@@ -5,7 +5,7 @@
 // - 日次リセット: 消す前にその時点の件数を dailyStats にスナップショットする。
 // 保存に失敗したらリセット自体を中止する（呼び出し側で再試行）。
 // - 終了処理: 最終レポートを event_reports（削除対象の外）に保存できた場合のみ削除に進む。
-// - 電話番号そのものはレポートに含めない。残すのは件数と集計だけ。
+// - 端末の識別子そのものはレポートに含めない。残すのは件数と集計だけ。
 import { FieldValue} from 'firebase-admin/firestore';
 import { db} from './firebase-admin';
 import {
@@ -256,7 +256,7 @@ export function backupExpiresAt(createdAtIso: string, retentionDays: number): st
  * 最終レポートの運営用バックアップを、削除対象の外（event_report_backups）に取る。
  * 主催者との契約・イベントデータのライフサイクルとは切り離し、運営側の保険とする
  * （メール紛失・課金トラブル時に、保持期間内なら運営が再送・確認できる）。
- * 中身は集計レポートのみで、電話番号は含まない。
+ * 中身は集計レポートのみで、端末の識別子は含まない。
  * 既にあれば何もしない（冪等）。失敗したら例外を投げる（終了処理＝削除を中止させるため）。
  */
 export async function ensureReportBackup(
@@ -318,13 +318,13 @@ return `
 <p>開催期間：${report.periodStart} 〜 ${report.periodEnd}</p>
 <h3>日別の件数</h3>
 <table border="1" cellspacing="0" cellpadding="6">
-<tr><th>日付</th><th>購読者数</th><th>登録者数（電話番号）</th><th>クーポン取得</th><th>クーポン消込</th></tr>
+<tr><th>日付</th><th>購読者数</th><th>登録者数（端末）</th><th>クーポン取得</th><th>クーポン消込</th></tr>
 ${rows}
 </table>
 <h3>最終件数（削除直前）</h3>
 <ul>
 <li>購読者数：${report.finalCounts.subscribers}</li>
-<li>登録者数（電話番号）：${report.finalCounts.members}</li>
+<li>登録者数（端末）：${report.finalCounts.members}</li>
 <li>クーポン取得：${report.finalCounts.claims}</li>
 <li>クーポン消込：${report.finalCounts.redemptions}</li>
 </ul>
@@ -335,5 +335,5 @@ ${campaignRows}
 </table>${report.billingTotalPaid ? `
 <h3>出店者課金の入金合計</h3>
 <p>${report.billingTotalPaid.toLocaleString()}円（出店者課金オプション・Stripe 経由の入金分）</p>` : ''}
-<p>※電話番号などの個人情報は、規約どおりイベント終了に伴い削除されました。本レポートには件数・集計のみを記載しています。</p>`;
+<p>※登録情報は、規約どおりイベント終了に伴い削除されました。本レポートには件数・集計のみを記載しています。</p>`;
 }

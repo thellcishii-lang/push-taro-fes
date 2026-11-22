@@ -8,7 +8,7 @@ import {
   evaluateRedemption,
   filterCoupons,
   isCouponCapReached,
-  memberIdForPhone,
+  memberIdForDevice,
   tallyClaimsByCoupon,
   visibleCatalogCoupons,
 } from './event-coupon';
@@ -168,9 +168,9 @@ describe('visibleCatalogCoupons（課金停止中の出店者をカタログか�
 });
 
 describe('ID生成', () => {
-  it('memberIdForPhone は決定的で電話番号そのものを含まない', () => {
-    expect(memberIdForPhone('+819012345678')).toBe(memberIdForPhone('+819012345678'));
-    expect(memberIdForPhone('+819012345678')).not.toContain('9012345678');
+  it('memberIdForDevice は決定的で端末の識別子そのものを含まない', () => {
+    expect(memberIdForDevice('anon-uid-1')).toBe(memberIdForDevice('anon-uid-1'));
+    expect(memberIdForDevice('anon-uid-1')).not.toContain('anon-uid-1');
   });
   it('claimId は memberId と couponId の組み合わせ', () => {
     expect(claimIdFor('m1', 'c1')).toBe('m1_c1');
