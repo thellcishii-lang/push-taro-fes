@@ -44,7 +44,7 @@ const sheetCss = `
 .sheet-back { padding: 9px 16px; border: 1px solid #cbd5e1; background: #ffffff;
   border-radius: 8px; font-weight: 700; font-size: 13px; color: #0f172a;
   text-decoration: none; cursor: pointer; }
-.sheet-print { padding: 9px 18px; border: none; background: #6d28d9;
+.sheet-print { padding: 9px 18px; border: none; background: #0e7fc4;
   border-radius: 8px; font-weight: 700; font-size: 13px; color: #ffffff; cursor: pointer; }
 .sheet-paper { background: #ffffff; max-width: 960px; margin: 20px auto 0;
   padding: 32px 36px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08); }

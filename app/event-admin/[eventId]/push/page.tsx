@@ -64,7 +64,7 @@ const ATTACHMENT_MIME_TO_EXT: Record<string, string> = {
 
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
-const VIOLET = '#6D28D9';
+const VIOLET = '#0e7fc4';
 
 const containerStyle: React.CSSProperties = {
   padding: '20px 16px 48px',
@@ -112,7 +112,7 @@ const primaryButtonStyle: React.CSSProperties = {
   border: 'none',
   borderRadius: 12,
   cursor: 'pointer',
-  boxShadow: '0 4px 12px rgba(109, 40, 217, 0.25)',
+  boxShadow: '0 4px 12px rgba(14, 127, 196, 0.25)',
 };
 
 const sectionTitleStyle: React.CSSProperties = {

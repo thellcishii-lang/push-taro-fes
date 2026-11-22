@@ -46,7 +46,7 @@ interface InfoPdf {
   url: string;
 }
 
-const VIOLET = '#6D28D9';
+const VIOLET = '#0e7fc4';
 
 const containerStyle: React.CSSProperties = {
   padding: '20px 16px 48px',
@@ -94,7 +94,7 @@ const primaryButtonStyle: React.CSSProperties = {
   border: 'none',
   borderRadius: 12,
   cursor: 'pointer',
-  boxShadow: '0 4px 12px rgba(109, 40, 217, 0.25)',
+  boxShadow: '0 4px 12px rgba(14, 127, 196, 0.25)',
 };
 
 const dangerButtonStyle: React.CSSProperties = {
@@ -394,8 +394,8 @@ export default function EventSettingsAdminPage() {
           <div
             {...pdfDropzone.getRootProps()}
             style={{
-              border: `2px dashed ${pdfDropzone.isDragActive ? '#6D28D9' : '#c4b5fd'}`,
-              backgroundColor: pdfDropzone.isDragActive ? '#f5f3ff' : '#ffffff',
+              border: `2px dashed ${pdfDropzone.isDragActive ? '#0e7fc4' : '#c4b5fd'}`,
+              backgroundColor: pdfDropzone.isDragActive ? '#eef7fb' : '#ffffff',
               borderRadius: 16,
               padding: 24,
               marginTop: 12,
