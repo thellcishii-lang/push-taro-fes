@@ -11,9 +11,9 @@ import type { Locale } from './i18n';
 
 /** 日次リセットの方式。イベントごとに選択する。 */
 export type EventResetMode =
-  /** 方式A: 購読も電話番号も毎日消去する（単日イベント向け） */
+  /** 方式A: 購読も端末情報も毎日消去する（単日イベント向け） */
   | 'full-daily'
-  /** 方式B: 毎日リセットするのは購読のみ。電話番号と取得・消込記録は期間中保持し、終了時に消去する */
+  /** 方式B: 毎日リセットするのは購読のみ。端末情報と取得・消込記録は期間中保持し、終了時に消去する */
   | 'keep-phones';
 
 export type EventStatus = 'draft' | 'live' | 'ended';
@@ -37,7 +37,7 @@ export interface EventConfig {
   ownerUid: string;
   /** 開催開始日（JST, 'YYYY-MM-DD'） */
   startDate: string;
-  /** 開催終了日（JST, 'YYYY-MM-DD'）。この日を過ぎたら終了処理（電話番号消去）の対象 */
+  /** 開催終了日（JST, 'YYYY-MM-DD'）。この日を過ぎたら終了処理（登録情報消去）の対象 */
   endDate: string;
   resetMode: EventResetMode;
   /** リセット時刻（JST, 'HH:MM'）。イベントごとに変更可能 */
@@ -83,11 +83,11 @@ export interface EventConfig {
 export const EVENT_SUBCOLLECTIONS = {
   /** プッシュ購読（端末ごとの購読情報） */
   subscribers: 'subscribers',
-  /** 電話番号キー本人確認レコード（電話番号そのものを含む） */
+  /** 端末キー本人確認レコード（端末の識別子を含む。電話番号は持たない） */
   members: 'members',
-  /** クーポン取得記録（電話番号キーに紐づく） */
+  /** クーポン取得記録（端末キーに紐づく） */
   claims: 'claims',
-  /** クーポン消込記録（電話番号キーに紐づく） */
+  /** クーポン消込記録（端末キーに紐づく） */
   redemptions: 'redemptions',
 } as const;
 
@@ -289,7 +289,7 @@ export function receivesCapsPropagation(
 }
 
 /**
- * 終了処理（電話番号消去）の対象かどうか。
+ * 終了処理（登録情報消去）の対象かどうか。
  * 終了日を過ぎていて、まだ finalized されていないイベントが対象。
  * リセットより優先される（終了後にリセットは走らない）。
  */

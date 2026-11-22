@@ -48,10 +48,10 @@ describe('formatFinalReportHtml', () => {
     expect(html).toContain('開場のお知らせ');
   });
 
-  it('電話番号そのものは含まない（件数のみ）', () => {
+  it('端末の識別子そのものは含まない（件数のみ）', () => {
     const html = formatFinalReportHtml(report);
     expect(html).not.toMatch(/0[789]0-\d{4}-\d{4}/);
-    expect(html).toContain('個人情報は');
+    expect(html).toContain('登録情報は');
   });
 
   it('配信が無い場合はその旨を表示する', () => {

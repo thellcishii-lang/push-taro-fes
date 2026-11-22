@@ -2,8 +2,9 @@
 
 // app/e/[eventId]/page.tsx
 // Push-taro FES の来場者登録画面（QRコードの着地先）。
-// 流れ: イベント情報の確認 → 電話番号のSMS認証 → 通知許可とFCMトークン取得 → 登録API。
-// 電話番号認証の作法は本家の登録画面（app/subscribe）に合わせている。
+// 流れ: イベント情報の確認 → 通知許可とFCMトークン取得 → 登録API。
+// 本人確認は端末認証のみ: 匿名認証で端末の識別子（uid）を得て登録する
+// （電話番号は一切集めない。「タップで登録」）。
 // 画面の固定文は4言語辞書（lib/ui-text.ts）で切り替える。初期表示は
 // イベントのデフォルト言語、本人が切り替えたらその選択が優先される。
 // クーポン表示: 取得済みを上部に固定し、全カタログは出店者ごとの
@@ -17,11 +18,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
-  ConfirmationResult,
-  RecaptchaVerifier,
   User,
   onAuthStateChanged,
-  signInWithPhoneNumber,
+  signInAnonymously,
 } from 'firebase/auth';
 import { auth, requestFCMToken } from '@/lib/firebase-client';
 import {
@@ -61,8 +60,6 @@ type Phase =
   | 'loading'
   | 'not-found'
   | 'unavailable'
-  | 'phone'
-  | 'code'
   | 'register'
   | 'done';
 
@@ -98,16 +95,6 @@ interface EventNotice {
     type: 'pdf' | 'image';
     storagePath: string;
   } | null;
-}
-
-function normalizePhoneNumber(value: string): string {
-  const compact = value
-    .replace(/[０-９]/g, (digit) => String.fromCharCode(digit.charCodeAt(0) - 0xfee0))
-    .replace(/[\s().-]/g, '');
-  if (compact.startsWith('00')) return `+${compact.slice(2)}`;
-  if (compact.startsWith('0')) return `+81${compact.slice(1)}`;
-  if (compact.startsWith('81')) return `+${compact}`;
-  return compact;
 }
 
 const VIOLET = '#6D28D9';
@@ -209,9 +196,6 @@ export default function EventVisitorPage() {
   const [phase, setPhase] = useState<Phase>('loading');
   const [user, setUser] = useState<User | null>(null);
   const [locale, setLocale] = useState<Locale>('ja');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
-  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [couponQuery, setCouponQuery] = useState('');
@@ -269,7 +253,7 @@ export default function EventVisitorPage() {
           // 保存が読めなくてもデフォルト言語で続行する
         }
         setLocale(resolveLocale(stored, ev.defaultLocale));
-        setPhase(ev.status === 'live' ? 'phone' : 'unavailable');
+        setPhase(ev.status === 'live' ? 'register' : 'unavailable');
         // 案内PDFは登録前でも見られる（会場案内など）
         try {
           const pdfRes = await fetch(`/api/events/${eventId}/info-pdfs/public`);
@@ -287,17 +271,18 @@ export default function EventVisitorPage() {
     };
   }, [eventId]);
 
-  useEffect(
-    () =>
-      onAuthStateChanged(auth, (u) => {
-        setUser(u);
-        if (u) setPhase((p) => (p === 'phone' || p === 'code' ? 'register' : p));
-      }),
-    [],
-  );
+  useEffect(() => onAuthStateChanged(auth, (u) => setUser(u)), []);
+
+  // 端末認証: 匿名認証でサインインし、端末の識別子（uid）を得る。
+  useEffect(() => {
+    if (!event || user) return;
+    signInAnonymously(auth).catch(() => {
+      // 失敗しても画面は止めない（登録ボタンの処理でも再試行する）
+    });
+  }, [event, user]);
 
   // 登録済みの端末で開き直したときは、登録フローを出し直さない。
-  // 電話認証のセッションが端末に残っていればサーバーに登録状態を確認し、
+  // 端末認証のセッションが端末に残っていればサーバーに登録状態を確認し、
   // 現在のリセット範囲で登録済みならそのまま利用画面（done）へ進める。
   // あわせて、通知許可が既にある場合だけトークンを裏で付け直す
   // （トークンが変わっていてもプッシュが届き続けるようにするため。
@@ -318,9 +303,7 @@ export default function EventVisitorPage() {
         if (!res.ok || cancelled) return;
         const data = await res.json().catch(() => ({}));
         if (cancelled || !data.registered) return;
-        setPhase((p) =>
-          p === 'phone' || p === 'code' || p === 'register' ? 'done' : p,
-        );
+        setPhase((p) => (p === 'register' ? 'done' : p));
         if (
           typeof Notification !== 'undefined' &&
           Notification.permission === 'granted'
@@ -372,50 +355,8 @@ export default function EventVisitorPage() {
     }
   };
 
-  const handleSendCode = async () => {
-    const normalized = normalizePhoneNumber(phoneNumber);
-    if (!/^\+[1-9]\d{7,14}$/.test(normalized)) {
-      setMessage(uiText(locale, 'phoneFormatError'));
-      return;
-    }
-    setBusy(true);
-    setMessage('');
-    try {
-      const previousVerifier = (window as unknown as Record<string, unknown>)
-        .__phoneRecaptchaVerifier as RecaptchaVerifier | undefined;
-      previousVerifier?.clear();
-      const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'normal' });
-      (window as unknown as Record<string, unknown>).__phoneRecaptchaVerifier = verifier;
-      const result = await signInWithPhoneNumber(auth, normalized, verifier);
-      setConfirmationResult(result);
-      setPhase('code');
-      setMessage(uiText(locale, 'codeSent'));
-    } catch (error) {
-      const code = (error as { code?: string }).code ?? 'unknown';
-      setMessage(uiText(locale, 'sendCodeFailed', { code }));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleConfirmCode = async () => {
-    if (!confirmationResult || !verificationCode.trim()) return;
-    setBusy(true);
-    setMessage('');
-    try {
-      await confirmationResult.confirm(verificationCode.trim());
-      setConfirmationResult(null);
-      setPhase('register');
-    } catch (error) {
-      const code = (error as { code?: string }).code ?? 'unknown';
-      setMessage(uiText(locale, 'codeWrong', { code }));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const handleRegister = async () => {
-    if (!user || !event) return;
+    if (!event) return;
     setBusy(true);
     setMessage('');
     try {
@@ -440,7 +381,12 @@ export default function EventVisitorPage() {
         return;
       }
 
-      const idToken = await user.getIdToken();
+      let currentUser = user;
+      if (!currentUser) {
+        currentUser = (await signInAnonymously(auth)).user;
+        setUser(currentUser);
+      }
+      const idToken = await currentUser.getIdToken();
       const res = await fetch(`/api/events/${eventId}/register`, {
         method: 'POST',
         headers: {
@@ -882,44 +828,9 @@ export default function EventVisitorPage() {
         </p>
       )}
 
-      {phase === 'phone' && (
+      {phase === 'register' && (
         <section style={{ ...cardStyle, marginTop: 20, padding: 16 }}>
           <p style={{ fontSize: 14, margin: 0 }}>{uiText(locale, 'registerIntro')}</p>
-          <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginTop: 16 }}>
-            {uiText(locale, 'phoneLabel')}
-            <input
-              style={inputStyle}
-              type="tel"
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-              placeholder="09012345678"
-            />
-          </label>
-          <div id="recaptcha-container" style={{ marginTop: 12 }} />
-          <button style={buttonStyle} onClick={handleSendCode} disabled={busy}>
-            {uiText(locale, 'sendCode')}
-          </button>
-          {message && <p style={feedbackStyle}>{message}</p>}
-        </section>
-      )}
-
-      {phase === 'code' && (
-        <section style={{ ...cardStyle, marginTop: 20, padding: 16 }}>
-          <label style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>
-            {uiText(locale, 'codeLabel')}
-            <input
-              style={inputStyle}
-              type="text"
-              inputMode="numeric"
-              value={verificationCode}
-              onChange={(e) => setVerificationCode(e.target.value)}
-              placeholder={uiText(locale, 'codePlaceholder')}
-            />
-          </label>
-          <button style={buttonStyle} onClick={handleConfirmCode} disabled={busy}>
-            {uiText(locale, 'confirmCode')}
-          </button>
-          {message && <p style={feedbackStyle}>{message}</p>}
         </section>
       )}
 

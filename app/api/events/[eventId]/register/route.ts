@@ -1,6 +1,7 @@
 // app/api/events/[eventId]/register/route.ts
-// 来場者登録 API。Firebase Phone Auth（SMS認証）で本人確認した電話番号をキーに、
-// events/{eventId} 配下へ members（本人確認）と subscribers（プッシュ購読）を保存する。
+// 来場者登録 API。端末認証（匿名認証）で得た端末の識別子（uid）をキーに、
+// events/{eventId} 配下へ members（本人確認）と subscribers（プッシュ購読）
+// を保存する。電話番号は一切集めない（登録は「タップで登録」）。
 import { NextResponse } from 'next/server';
 import { authAdmin } from '@/lib/firebase-admin';
 import { enforceRateLimit } from '@/lib/rate-limit';
@@ -22,20 +23,20 @@ export async function POST(
 
   const { eventId } = await params;
 
-  // 電話番号認証（SMS）のトークンから電話番号を取り出す。本人確認が無い登録は受けない。
+  // 端末認証のトークンから端末の識別子（uid）を取り出す。本人確認が無い登録は受けない。
   const authHeader = request.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) {
-    return NextResponse.json({ error: '電話番号認証が必要です' }, { status: 401 });
+    return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
   }
-  let phoneE164: string;
+  let deviceUid: string;
   try {
     const decoded = await authAdmin.verifyIdToken(authHeader.slice(7));
-    if (typeof decoded.phone_number !== 'string' || !decoded.phone_number) {
-      return NextResponse.json({ error: '電話番号認証が必要です' }, { status: 401 });
+    if (typeof decoded.uid !== 'string' || !decoded.uid) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
     }
-    phoneE164 = decoded.phone_number;
+    deviceUid = decoded.uid;
   } catch {
-    return NextResponse.json({ error: '電話番号認証の有効期限が切れています' }, { status: 401 });
+    return NextResponse.json({ error: '認証の有効期限が切れています' }, { status: 401 });
   }
 
   let body: Record<string, unknown>;
@@ -50,7 +51,7 @@ export async function POST(
   }
   const lang = typeof body.lang === 'string' ? body.lang : undefined;
 
-  const result = await registerEventVisitor(eventId, { phoneE164, fcmToken, lang });
+  const result = await registerEventVisitor(eventId, { deviceUid, fcmToken, lang });
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }

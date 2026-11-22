@@ -1,11 +1,10 @@
 // app/api/events/[eventId]/registration-status/route.ts
-// 来場者本人が現在のリセット範囲で登録済みかどうかを返す。
-// 電話番号認証のトークンから本人を特定する（登録 API と同じ方式）。
-// 来場者ページは、登録済みの端末で開き直したときに登録フローを
-// 出し直さないためにこの状態を確認する。
+// 来場者本人の登録状態の確認。来場者ページが開くたびに呼び、登録済みの
+// 端末には登録バナー（プッシュ通知を受け取る）を出さないために使う。
+// 認証は他の来場者 API と同じ作法: 端末認証のトークンから memberId を導く。
 import { NextResponse } from 'next/server';
-import { authAdmin } from '@/lib/firebase-admin';
-import { getVisitorRegistrationStatus, memberIdForPhone } from '@/lib/event-register';
+import { memberIdFromRequest } from '@/lib/event-member-auth';
+import { getVisitorRegistrationStatus } from '@/lib/event-register';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,25 +14,10 @@ export async function GET(
 ) {
   const { eventId } = await params;
 
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return NextResponse.json({ error: '電話番号認証が必要です' }, { status: 401 });
-  }
-  let memberId: string;
-  try {
-    const decoded = await authAdmin.verifyIdToken(authHeader.slice(7));
-    if (typeof decoded.phone_number !== 'string' || !decoded.phone_number) {
-      return NextResponse.json({ error: '電話番号認証が必要です' }, { status: 401 });
-    }
-    memberId = memberIdForPhone(decoded.phone_number);
-  } catch {
-    return NextResponse.json(
-      { error: '電話番号認証の有効期限が切れています' },
-      { status: 401 },
-    );
-  }
+  const auth = await memberIdFromRequest(request);
+  if ('error' in auth) return auth.error;
 
-  const result = await getVisitorRegistrationStatus(eventId, memberId);
+  const result = await getVisitorRegistrationStatus(eventId, auth.memberId);
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
