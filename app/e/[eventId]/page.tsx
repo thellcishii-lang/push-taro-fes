@@ -71,6 +71,17 @@ interface PublicCoupon {
   keywords: string[];
 }
 
+interface PublicTimetableEntry {
+  id: string;
+  date: string;
+  stage: string;
+  startTime: string;
+  endTime: string;
+  title: string;
+  note: string;
+  changedAt: string | null;
+}
+
 interface MemberClaim {
   claimId: string;
   couponId: string;
@@ -202,6 +213,9 @@ export default function EventVisitorPage() {
   const [coupons, setCoupons] = useState<PublicCoupon[]>([]);
   const [myClaims, setMyClaims] = useState<MemberClaim[]>([]);
   const [notices, setNotices] = useState<EventNotice[]>([]);
+  const [ttEntries, setTtEntries] = useState<PublicTimetableEntry[]>([]);
+  const [ttDate, setTtDate] = useState<string | null>(null);
+  const [ttStage, setTtStage] = useState<string | null>(null);
   const [couponMessage, setCouponMessage] = useState('');
   const [infoPdfs, setInfoPdfs] = useState<InfoPdf[]>([]);
   // QRを開いている取得済みクーポン。undefined = 未操作（先頭の未使用分を開く）
@@ -280,6 +294,31 @@ export default function EventVisitorPage() {
       // 失敗しても画面は止めない（登録ボタンの処理でも再試行する）
     });
   }, [event, user]);
+
+  // タイムテーブルは公開情報として読み込む（予定が無ければセクション自体を出さない）。
+  useEffect(() => {
+    if (!event) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/events/${eventId}/timetable`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled || !Array.isArray(data.entries)) return;
+        const entries = data.entries as PublicTimetableEntry[];
+        setTtEntries(entries);
+        const dates = [...new Set(entries.map((e) => e.date))].sort();
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        setTtDate((prev) => prev ?? (dates.includes(todayStr) ? todayStr : dates[0] ?? null));
+      } catch {
+        // タイムテーブルが読めなくても画面は止めない
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [event, eventId]);
 
   // 登録済みの端末で開き直したときは、登録フローを出し直さない。
   // 端末認証のセッションが端末に残っていればサーバーに登録状態を確認し、
@@ -817,6 +856,148 @@ export default function EventVisitorPage() {
               🔗 {link.title}
             </a>
           ))}
+        </section>
+      )}
+
+      {ttEntries.length > 0 && (
+        <section style={{ marginTop: 24 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 800 }}>{uiText(locale, 'timetableTitle')}</h2>
+          {(() => {
+            const dates = [...new Set(ttEntries.map((e) => e.date))].sort();
+            const activeDate = ttDate && dates.includes(ttDate) ? ttDate : dates[0];
+            const dayEntries = ttEntries.filter((e) => e.date === activeDate);
+            const stages = [...new Set(dayEntries.map((e) => e.stage))];
+            const activeStage =
+              ttStage && stages.includes(ttStage) ? ttStage : stages[0];
+            const visible = dayEntries
+              .filter((e) => e.stage === activeStage)
+              .sort((a, b) => a.startTime.localeCompare(b.startTime));
+            const now = new Date();
+            const nowStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            const chipStyle = (active: boolean): React.CSSProperties => ({
+              padding: '7px 14px',
+              borderRadius: 999,
+              border: `1px solid ${active ? VIOLET : '#cbd5e1'}`,
+              backgroundColor: active ? VIOLET : '#ffffff',
+              color: active ? '#ffffff' : '#0f172a',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: 'pointer',
+            });
+            return (
+              <>
+                {dates.length > 1 && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+                    {dates.map((d) => (
+                      <button
+                        key={d}
+                        style={chipStyle(d === activeDate)}
+                        onClick={() => {
+                          setTtDate(d);
+                          setTtStage(null);
+                        }}
+                      >
+                        {d.slice(5).replace('-', '/')}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {stages.length > 1 && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+                    {stages.map((stageName) => (
+                      <button
+                        key={stageName}
+                        style={chipStyle(stageName === activeStage)}
+                        onClick={() => setTtStage(stageName)}
+                      >
+                        {stageName}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div style={{ marginTop: 10 }}>
+                  {visible.map((entry) => {
+                    const isNow =
+                      activeDate === todayStr &&
+                      entry.startTime <= nowStr &&
+                      nowStr < entry.endTime;
+                    return (
+                      <div
+                        key={entry.id}
+                        style={{
+                          ...cardStyle,
+                          padding: '12px 14px',
+                          marginTop: 8,
+                          border: isNow ? `2px solid ${VIOLET_BRIGHT}` : cardStyle.border,
+                          display: 'flex',
+                          gap: 12,
+                          alignItems: 'flex-start',
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 800,
+                            color: VIOLET,
+                            minWidth: 104,
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          {entry.startTime}
+                          <span style={{ color: '#94a3b8', fontWeight: 600 }}>〜{entry.endTime}</span>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.45 }}>
+                            {entry.title}
+                            {isNow && (
+                              <span
+                                style={{
+                                  marginLeft: 8,
+                                  fontSize: 11,
+                                  fontWeight: 800,
+                                  color: '#ffffff',
+                                  backgroundColor: VIOLET_BRIGHT,
+                                  borderRadius: 999,
+                                  padding: '2px 8px',
+                                  verticalAlign: 'middle',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {uiText(locale, 'timetableNow')}
+                              </span>
+                            )}
+                            {entry.changedAt && (
+                              <span
+                                style={{
+                                  marginLeft: 8,
+                                  fontSize: 11,
+                                  fontWeight: 800,
+                                  color: '#b45309',
+                                  backgroundColor: '#fef3c7',
+                                  borderRadius: 999,
+                                  padding: '2px 8px',
+                                  verticalAlign: 'middle',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {uiText(locale, 'timetableChanged')}
+                              </span>
+                            )}
+                          </div>
+                          {entry.note && (
+                            <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 3 }}>
+                              {entry.note}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            );
+          })()}
         </section>
       )}
 

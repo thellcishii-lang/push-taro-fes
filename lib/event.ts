@@ -89,6 +89,8 @@ export const EVENT_SUBCOLLECTIONS = {
   claims: 'claims',
   /** クーポン消込記録（端末キーに紐づく） */
   redemptions: 'redemptions',
+  /** タイムテーブル（FES。日次リセット対象外、終了処理でのみ消す） */
+  timetable: 'timetable',
 } as const;
 
 export type EventSubcollection =

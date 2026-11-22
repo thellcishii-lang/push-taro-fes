@@ -175,10 +175,11 @@ export function AdminNav({
   }> = eventId
     ? [
         { key: 'ダッシュボード', href: `/event-admin/${eventId}`, label: adminText(locale, 'navDashboard'), icon: dashboardIcon },
-        { key: '①', href: `/event-admin/${eventId}/push`, label: adminText(locale, 'navPush'), icon: pushIcon },
-        { key: '②', href: `/event-admin/${eventId}/schedule`, label: adminText(locale, 'navSchedule'), icon: scheduleIcon },
-        { key: '③', href: `/event-admin/${eventId}/coupons`, label: adminText(locale, 'navCoupons'), icon: couponsIcon },
-        { key: '④', href: `/event-admin/${eventId}/settings`, label: adminText(locale, 'navConfig'), icon: gearIcon },
+        { key: '①', href: `/event-admin/${eventId}/timetable`, label: adminText(locale, 'navTimetable'), icon: scheduleIcon },
+        { key: '②', href: `/event-admin/${eventId}/push`, label: adminText(locale, 'navPush'), icon: pushIcon },
+        { key: '③', href: `/event-admin/${eventId}/schedule`, label: adminText(locale, 'navSchedule'), icon: scheduleIcon },
+        { key: '④', href: `/event-admin/${eventId}/coupons`, label: adminText(locale, 'navCoupons'), icon: couponsIcon },
+        { key: '⑤', href: `/event-admin/${eventId}/settings`, label: adminText(locale, 'navConfig'), icon: gearIcon },
       ]
     : [
         { key: '設定', href: '/event-admin', label: adminText(locale, 'navSettings'), icon: settingsIcon },
