@@ -32,6 +32,7 @@ import { uiText } from '@/lib/ui-text';
 import { buildCouponGroups } from '@/lib/coupon-groups';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
+import { VenueMap, type VenueMapLocation } from '@/components/VenueMap';
 
 interface PublicEventLink {
   title: string;
@@ -51,6 +52,10 @@ interface PublicEvent {
   links?: PublicEventLink[];
   /** 配信チャンネル（セグメント）。未登録なら空で、画面に何も出さない */
   channels?: Array<{ id: string; name: string }>;
+  /** 会場マップの中心。未設定なら地図を出さない */
+  venueMap?: { lat: number; lng: number; zoom: number } | null;
+  /** 会場マップのピン */
+  pins?: Array<{ id: string; label: string; lat: number; lng: number }>;
 }
 
 interface AdmissionQrState {
@@ -254,6 +259,9 @@ export default function EventVisitorPage() {
   const [myClaims, setMyClaims] = useState<MemberClaim[]>([]);
   const [notices, setNotices] = useState<EventNotice[]>([]);
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
+  const [myLocation, setMyLocation] = useState<VenueMapLocation | null>(null);
+  const [mapFocus, setMapFocus] = useState<{ lat: number; lng: number; zoom: number } | null>(null);
+  const [mapError, setMapError] = useState('');
   const [ttEntries, setTtEntries] = useState<PublicTimetableEntry[]>([]);
   const [ttDate, setTtDate] = useState<string | null>(null);
   const [ttStage, setTtStage] = useState<string | null>(null);
@@ -478,6 +486,27 @@ export default function EventVisitorPage() {
     } catch {
       // 保存に失敗しても表示は選択どおりにしておく（次回登録時に送り直される）
     }
+  };
+
+  const handleShowMyLocation = () => {
+    setMapError('');
+    if (!('geolocation' in navigator)) {
+      setMapError(uiText(locale, 'mapLocationFailed'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const loc = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        };
+        setMyLocation(loc);
+        setMapFocus({ lat: loc.lat, lng: loc.lng, zoom: 17 });
+      },
+      () => setMapError(uiText(locale, 'mapLocationFailed')),
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
   };
 
   const handleRegister = async () => {
@@ -942,6 +971,39 @@ export default function EventVisitorPage() {
               🔗 {link.title}
             </a>
           ))}
+        </section>
+      )}
+
+      {event.venueMap && (
+        <section style={{ marginTop: 24 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 800 }}>{uiText(locale, 'mapTitle')}</h2>
+          <div style={{ marginTop: 10 }}>
+            <VenueMap
+              center={mapFocus ?? event.venueMap}
+              pins={event.pins ?? []}
+              myLocation={myLocation}
+              height={320}
+            />
+          </div>
+          <button
+            onClick={handleShowMyLocation}
+            style={{
+              marginTop: 10,
+              padding: '10px 18px',
+              borderRadius: 999,
+              border: 'none',
+              backgroundColor: VIOLET,
+              color: '#ffffff',
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            📍 {uiText(locale, 'mapMyLocationButton')}
+          </button>
+          {mapError && (
+            <p style={{ fontSize: 13, color: '#b91c1c', marginTop: 8 }}>{mapError}</p>
+          )}
         </section>
       )}
 

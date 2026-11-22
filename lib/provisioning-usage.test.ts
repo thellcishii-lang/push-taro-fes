@@ -20,6 +20,8 @@ function eventWith(status: EventConfig['status']): EventConfig {
     admissionQrEnabled: false,
     links: [],
   channels: [],
+  venueMap: null,
+  pins: [],
     couponCap: 100,
     backupRetentionDays: 30,
     status,
