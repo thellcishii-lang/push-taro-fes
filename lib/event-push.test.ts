@@ -207,6 +207,8 @@ describe('buildNotices', () => {
     error: null,
     sendingStartedAt: null,
     attachment: null,
+    channelId: null,
+    channelName: null,
     createdAt: '2026-11-07T01:00:00.000Z',
     ...overrides,
   });
@@ -222,6 +224,28 @@ describe('buildNotices', () => {
       'ja',
     );
     expect(notices.map((n) => n.id)).toEqual(['new', 'old']);
+  });
+  it('チャンネル配信は、そのチャンネルを選んだ人にだけ出す', () => {
+    const campaigns = [
+      makeCampaign({ id: 'all', sentAt: '2026-11-07T01:00:00.000Z' }),
+      makeCampaign({
+        id: 'ch-a',
+        channelId: 'cha',
+        sentAt: '2026-11-07T02:00:00.000Z',
+      }),
+      makeCampaign({
+        id: 'ch-b',
+        channelId: 'chb',
+        sentAt: '2026-11-07T03:00:00.000Z',
+      }),
+    ];
+    expect(buildNotices(campaigns, 'ja', undefined, 20, ['cha']).map((n) => n.id)).toEqual([
+      'ch-a',
+      'all',
+    ]);
+    expect(buildNotices(campaigns, 'ja', undefined, 20, []).map((n) => n.id)).toEqual([
+      'all',
+    ]);
   });
   it('本人の言語で文面を解決し、無ければ原文に落とす', () => {
     const notices = buildNotices([makeCampaign({})], 'en', 'ja');

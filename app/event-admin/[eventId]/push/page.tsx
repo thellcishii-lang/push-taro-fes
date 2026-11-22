@@ -51,6 +51,7 @@ interface Campaign {
   sentCount: number | null;
   error: string | null;
   attachment: CampaignAttachment | null;
+  channelName: string | null;
 }
 
 /** 添付できるファイル種別（MIME → 拡張子）。サーバー側の検証と同じ範囲にそろえる。 */
@@ -174,6 +175,8 @@ export default function EventPushAdminPage() {
   const [attachmentUploading, setAttachmentUploading] = useState(false);
   const [attachmentError, setAttachmentError] = useState('');
   const [eventName, setEventName] = useState('');
+  const [channels, setChannels] = useState<Array<{ id: string; name: string }>>([]);
+  const [targetChannelId, setTargetChannelId] = useState('');
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [claimCode, setClaimCode] = useState('');
   const [message, setMessage] = useState('');
@@ -233,6 +236,7 @@ export default function EventPushAdminPage() {
     try {
       const data = await callApi(`/api/events/${eventId}`);
       if (typeof data.event?.name === 'string') setEventName(data.event.name);
+      if (Array.isArray(data.event?.channels)) setChannels(data.event.channels);
     } catch {
       // ナビに名前が出ないだけ
     }
@@ -298,7 +302,12 @@ export default function EventPushAdminPage() {
     try {
       const data = await callApi(`/api/events/${eventId}/campaigns`, {
         method: 'POST',
-        body: JSON.stringify({ title, body, attachment }),
+        body: JSON.stringify({
+          title,
+          body,
+          attachment,
+          channelId: targetChannelId || undefined,
+        }),
       });
       setPushMessage(adminText(locale, 'sentMessage', { count: String(data.campaign?.sentCount ?? 0) }));
       setTitle('');
@@ -387,6 +396,23 @@ export default function EventPushAdminPage() {
           {adminText(locale, 'bodyLabel')}
           <textarea style={{ ...inputStyle, minHeight: 72 }} value={body} onChange={(e) => setBody(e.target.value)} />
         </label>
+        {channels.length > 0 && (
+          <label style={labelStyle}>
+            {adminText(locale, 'pushTargetLabel')}
+            <select
+              style={inputStyle}
+              value={targetChannelId}
+              onChange={(e) => setTargetChannelId(e.target.value)}
+            >
+              <option value="">{adminText(locale, 'pushTargetAll')}</option>
+              {channels.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <div style={{ marginBottom: 12 }}>
           <span style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>
             {adminText(locale, 'attachmentLabel')}
@@ -496,7 +522,10 @@ export default function EventPushAdminPage() {
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14 }}>{campaign.title}</div>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>
+                    {campaign.title}
+                    {campaign.channelName ? `（${campaign.channelName}）` : ''}
+                  </div>
                   <span style={statusBadgeStyle(campaign.status === 'sent')}>
                     {adminText(locale, campaign.status === 'sent' ? 'badgeSent' : 'badgeFailed')}
                   </span>

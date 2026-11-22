@@ -50,8 +50,16 @@ export async function POST(
     return NextResponse.json({ error: '有効な fcmToken が必要です' }, { status: 400 });
   }
   const lang = typeof body.lang === 'string' ? body.lang : undefined;
+  const channelIds = Array.isArray(body.channelIds)
+    ? body.channelIds.filter((id): id is string => typeof id === 'string')
+    : undefined;
 
-  const result = await registerEventVisitor(eventId, { deviceUid, fcmToken, lang });
+  const result = await registerEventVisitor(eventId, {
+    deviceUid,
+    fcmToken,
+    lang,
+    channelIds,
+  });
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }

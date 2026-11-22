@@ -49,6 +49,8 @@ interface PublicEvent {
   admissionQrEnabled: boolean;
   /** 主催者リンク（最大3件）。未登録なら空で、画面に何も出さない */
   links?: PublicEventLink[];
+  /** 配信チャンネル（セグメント）。未登録なら空で、画面に何も出さない */
+  channels?: Array<{ id: string; name: string }>;
 }
 
 interface AdmissionQrState {
@@ -200,6 +202,44 @@ function PinLogo() {
   );
 }
 
+function ChannelChips({
+  channels,
+  selected,
+  onToggle,
+}: {
+  channels: Array<{ id: string; name: string }>;
+  selected: string[];
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+      {channels.map((channel) => {
+        const active = selected.includes(channel.id);
+        return (
+          <button
+            key={channel.id}
+            onClick={() => onToggle(channel.id)}
+            aria-pressed={active}
+            style={{
+              padding: '9px 16px',
+              borderRadius: 999,
+              border: `1px solid ${active ? VIOLET : '#cbd5e1'}`,
+              backgroundColor: active ? VIOLET : '#ffffff',
+              color: active ? '#ffffff' : '#0f172a',
+              fontSize: 13.5,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            {active ? '✓ ' : ''}
+            {channel.name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function EventVisitorPage() {
   const params = useParams<{ eventId: string }>();
   const eventId = params.eventId;
@@ -213,6 +253,7 @@ export default function EventVisitorPage() {
   const [coupons, setCoupons] = useState<PublicCoupon[]>([]);
   const [myClaims, setMyClaims] = useState<MemberClaim[]>([]);
   const [notices, setNotices] = useState<EventNotice[]>([]);
+  const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [ttEntries, setTtEntries] = useState<PublicTimetableEntry[]>([]);
   const [ttDate, setTtDate] = useState<string | null>(null);
   const [ttStage, setTtStage] = useState<string | null>(null);
@@ -394,6 +435,51 @@ export default function EventVisitorPage() {
     }
   };
 
+  // 登録済みになったら、保存済みのチャンネル選択を読み込む。
+  useEffect(() => {
+    if (phase !== 'done' || !user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const idToken = await user.getIdToken();
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        headers['Authori' + 'zation'] = `Bearer ${idToken}`;
+        const res = await fetch(`/api/events/${eventId}/channels`, { headers });
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok && Array.isArray(data.selected)) {
+          setSelectedChannels(data.selected);
+        }
+      } catch {
+        // 読めなくても画面は止めない
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, user, eventId]);
+
+  const toggleChannel = async (channelId: string) => {
+    const next = selectedChannels.includes(channelId)
+      ? selectedChannels.filter((id) => id !== channelId)
+      : [...selectedChannels, channelId];
+    setSelectedChannels(next);
+    if (phase !== 'done' || !user) return;
+    try {
+      const idToken = await user.getIdToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      headers['Authori' + 'zation'] = `Bearer ${idToken}`;
+      const res = await fetch(`/api/events/${eventId}/channels`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ channelIds: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && Array.isArray(data.selected)) setSelectedChannels(data.selected);
+    } catch {
+      // 保存に失敗しても表示は選択どおりにしておく（次回登録時に送り直される）
+    }
+  };
+
   const handleRegister = async () => {
     if (!event) return;
     setBusy(true);
@@ -432,7 +518,7 @@ export default function EventVisitorPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ fcmToken, lang: locale }),
+        body: JSON.stringify({ fcmToken, lang: locale, channelIds: selectedChannels }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -1012,6 +1098,21 @@ export default function EventVisitorPage() {
       {phase === 'register' && (
         <section style={{ ...cardStyle, marginTop: 20, padding: 16 }}>
           <p style={{ fontSize: 14, margin: 0 }}>{uiText(locale, 'registerIntro')}</p>
+          {event.channels && event.channels.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <p style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>
+                {uiText(locale, 'channelsTitle')}
+              </p>
+              <p style={{ fontSize: 12.5, color: '#64748b', marginTop: 6 }}>
+                {uiText(locale, 'channelsNote')}
+              </p>
+              <ChannelChips
+                channels={event.channels}
+                selected={selectedChannels}
+                onToggle={(id) => void toggleChannel(id)}
+              />
+            </div>
+          )}
         </section>
       )}
 
@@ -1024,6 +1125,22 @@ export default function EventVisitorPage() {
               ? uiText(locale, 'keepPhonesNote')
               : uiText(locale, 'fullDailyNote')}
           </p>
+        </section>
+      )}
+
+      {phase === 'done' && event.channels && event.channels.length > 0 && (
+        <section style={{ ...cardStyle, marginTop: 20, padding: 16 }}>
+          <p style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>
+            {uiText(locale, 'channelsTitle')}
+          </p>
+          <p style={{ fontSize: 12.5, color: '#64748b', marginTop: 6 }}>
+            {uiText(locale, 'channelsNote')}
+          </p>
+          <ChannelChips
+            channels={event.channels}
+            selected={selectedChannels}
+            onToggle={(id) => void toggleChannel(id)}
+          />
         </section>
       )}
 
