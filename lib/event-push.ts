@@ -16,6 +16,7 @@ import {
   EVENT_SUBCOLLECTIONS,
   jstDateString,
   jstTimeString,
+  channelTopic,
   localeTopic,
 } from './event';
 import { getEvent } from './event-store';
@@ -178,6 +179,10 @@ export interface EventCampaign {
   sendingStartedAt: string | null;
   /** 宣伝ファイルの添付（任意）。無い配信は null */
   attachment: CampaignAttachment | null;
+  /** 配信先チャンネル（セグメント）。null は全体配信 */
+  channelId: string | null;
+  /** 配信先チャンネル名の控え（作成時点。履歴表示用） */
+  channelName: string | null;
   createdAt: string;
 }
 
@@ -235,6 +240,8 @@ function toCampaign(
     error: (d.error as string | null) ?? null,
     sendingStartedAt: d.sendingStartedAt?.toDate?.().toISOString() ?? null,
     attachment: readCampaignAttachment(eventId, d.attachment),
+    channelId: typeof d.channelId === 'string' && d.channelId ? d.channelId : null,
+    channelName: typeof d.channelName === 'string' && d.channelName ? d.channelName : null,
     createdAt: d.createdAt?.toDate?.().toISOString() ?? '',
   };
 }
@@ -250,6 +257,10 @@ export async function createCampaignRecord(
     ownerUid: string;
     /** 宣伝ファイルの添付（任意、未検証の値でもよい） */
     attachment?: unknown;
+    /** 配信先チャンネル。未指定・null は全体配信 */
+    channelId?: string | null;
+    /** 配信先チャンネル名の控え */
+    channelName?: string | null;
   },
 ): Promise<EventCampaign> {
   const title = input.title.trim();
@@ -276,6 +287,8 @@ export async function createCampaignRecord(
     sentCount: null,
     error: null,
     attachment: parsedAttachment.attachment,
+    channelId: input.channelId ?? null,
+    channelName: input.channelName ?? null,
     createdAt: FieldValue.serverTimestamp(),
   });
   const created = await ref.get();
@@ -359,9 +372,16 @@ export function buildNotices(
   locale: Locale,
   eventDefault?: unknown,
   limit: number = NOTICE_LIMIT,
+  memberChannels?: readonly string[],
 ): EventNotice[] {
   return campaigns
     .filter((campaign) => campaign.status === 'sent')
+    .filter(
+      (campaign) =>
+        !campaign.channelId ||
+        memberChannels === undefined ||
+        memberChannels.includes(campaign.channelId),
+    )
     .sort((a, b) =>
       (b.sentAt ?? b.createdAt).localeCompare(a.sentAt ?? a.createdAt),
     )
@@ -431,7 +451,9 @@ export async function executeCampaign(
     for (const text of texts) {
       try {
         await messaging.send({
-          topic: localeTopic(eventId, text.locale),
+          topic: campaign.channelId
+            ? channelTopic(eventId, campaign.channelId, text.locale)
+            : localeTopic(eventId, text.locale),
           data: {
             title: text.title,
             body: text.body,

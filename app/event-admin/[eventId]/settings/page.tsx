@@ -108,6 +108,14 @@ const dangerButtonStyle: React.CSSProperties = {
   cursor: 'pointer',
 };
 
+function padSegmentSlots(
+  channels: Array<{ id: string; name: string }>,
+): Array<{ id: string; name: string }> {
+  const slots = channels.map((c) => ({ id: c.id, name: c.name }));
+  while (slots.length < 3) slots.push({ id: '', name: '' });
+  return slots;
+}
+
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: 18,
   fontWeight: 800,
@@ -130,6 +138,13 @@ export default function EventSettingsAdminPage() {
     { title: '', url: '' },
   ]);
   const [linksMessage, setLinksMessage] = useState('');
+  const [segmentSlots, setSegmentSlots] = useState<Array<{ id: string; name: string }>>([
+    { id: '', name: '' },
+    { id: '', name: '' },
+    { id: '', name: '' },
+  ]);
+  const [segmentsMessage, setSegmentsMessage] = useState('');
+  const [segmentsSaving, setSegmentsSaving] = useState(false);
   const [linksSaving, setLinksSaving] = useState(false);
   const [pdfTitle, setPdfTitle] = useState('');
   const [pdfUploading, setPdfUploading] = useState(false);
@@ -193,6 +208,8 @@ export default function EventSettingsAdminPage() {
           url: links[i]?.url ?? '',
         })),
       );
+      const channels: Array<{ id: string; name: string }> = data.event?.channels ?? [];
+      setSegmentSlots(padSegmentSlots(channels));
     } catch {
       // リンクが読み込めなくてもPDF管理は止めない
     }
@@ -206,6 +223,32 @@ export default function EventSettingsAdminPage() {
     setLinkSlots((slots) =>
       slots.map((slot, i) => (i === index ? { ...slot, [field]: value } : slot)),
     );
+  };
+
+  const updateSegmentSlot = (index: number, name: string) => {
+    setSegmentSlots((slots) =>
+      slots.map((slot, i) => (i === index ? { ...slot, name } : slot)),
+    );
+  };
+
+  const handleSaveSegments = async () => {
+    setSegmentsSaving(true);
+    setSegmentsMessage('');
+    try {
+      const data = await callApi(`/api/events/${eventId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ channels: segmentSlots }),
+      });
+      setSegmentsMessage(adminText(locale, 'segmentsSaved'));
+      const channels: Array<{ id: string; name: string }> = data.event?.channels ?? [];
+      setSegmentSlots(padSegmentSlots(channels));
+    } catch (e) {
+      setSegmentsMessage(
+        e instanceof Error ? e.message : adminText(locale, 'segmentsSaveFailed'),
+      );
+    } finally {
+      setSegmentsSaving(false);
+    }
   };
 
   const handleSaveLinks = async () => {
@@ -458,6 +501,59 @@ export default function EventSettingsAdminPage() {
             </span>
           </button>
           {linksMessage && <p style={adminFeedbackStyle}>{linksMessage}</p>}
+        </div>
+      </section>
+
+      <section style={{ marginTop: 32 }}>
+        <h2 style={sectionTitleStyle}>{adminText(locale, 'segmentsTitle')}</h2>
+        <p style={{ fontSize: 12.5, color: '#64748b', marginTop: 5 }}>
+          {adminText(locale, 'segmentsNote')}
+        </p>
+        <div style={{ ...cardStyle, marginTop: 12, padding: 24 }}>
+          {segmentSlots.map((slot, i) => (
+            <label key={i} style={{ ...labelStyle, marginBottom: 10 }}>
+              {adminText(locale, 'segmentNameLabel', { n: String(i + 1) })}
+              <input
+                style={inputStyle}
+                value={slot.name}
+                onChange={(e) => updateSegmentSlot(i, e.target.value)}
+                placeholder={adminText(locale, 'segmentNamePlaceholder')}
+              />
+            </label>
+          ))}
+          {segmentSlots.length < 10 && (
+            <button
+              onClick={() =>
+                setSegmentSlots((slots) => [...slots, { id: '', name: '' }])
+              }
+              style={{
+                padding: '9px 16px',
+                fontSize: 13,
+                fontWeight: 700,
+                borderRadius: 12,
+                border: '1px dashed #94a3b8',
+                backgroundColor: '#ffffff',
+                color: VIOLET,
+                cursor: 'pointer',
+              }}
+            >
+              ＋ {adminText(locale, 'segmentAddButton')}
+            </button>
+          )}
+          <p style={{ fontSize: 12, color: '#64748b', marginTop: 10 }}>
+            {adminText(locale, 'segmentsMaxNote')}
+          </p>
+          <button
+            onClick={() => void handleSaveSegments()}
+            disabled={segmentsSaving}
+            style={{ ...primaryButtonStyle, marginTop: 12 }}
+          >
+            <span style={adminButtonContentStyle}>
+              {segmentsSaving && <ButtonSpinner />}
+              {adminText(locale, 'segmentsSaveButton')}
+            </span>
+          </button>
+          {segmentsMessage && <p style={adminFeedbackStyle}>{segmentsMessage}</p>}
         </div>
       </section>
     </AdminShell>

@@ -19,6 +19,7 @@ function eventWith(status: EventConfig['status']): EventConfig {
     defaultLocale: 'ja',
     admissionQrEnabled: false,
     links: [],
+  channels: [],
     couponCap: 100,
     backupRetentionDays: 30,
     status,
