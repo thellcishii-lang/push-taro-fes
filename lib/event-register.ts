@@ -1,0 +1,256 @@
+// lib/event-register.ts
+// Push-taro FES の来場者登録（events/{eventId} 配下への配置）。
+//
+// - 本人確認は Firebase Phone Auth（SMS認証）。電話番号がその人の識別キーになる
+//   （再登録によるクーポンの二重取得を防ぐため）。
+// - members/{memberId}: 電話番号を含む本人確認レコード。memberId は電話番号の
+//   SHA-256 ハッシュで、電話番号そのものをドキュメントIDにしない。
+//   方式B（keep-phones）では日次リセットでも残り、イベント終了時に消去される。
+// - subscribers/{memberId}: プッシュ購読（FCMトークン）。1電話番号につき1購読とし、
+//   再登録はトークンの更新として扱う。日次リセットで両方式とも消去される。
+import { createHash } from 'node:crypto';
+import { FieldValue } from 'firebase-admin/firestore';
+import { db, messaging } from './firebase-admin';
+import {
+  EVENT_SUBCOLLECTIONS,
+  EventConfig,
+  jstDateString,
+  jstTimeString,
+  localeTopic,
+} from './event';
+import { isLocale, normalizeLocale, type Locale } from './i18n';
+import { getEvent } from './event-store';
+
+export function memberIdForPhone(phoneE164: string): string {
+  return createHash('sha256').update(phoneE164.trim()).digest('hex');
+}
+
+export type RegistrationRejection =
+  | 'not-live'
+  | 'before-period'
+  | 'after-period'
+  | 'cap-reached';
+
+export type RegistrationDecision =
+  | { allowed: true }
+  | { allowed: false; reason: RegistrationRejection };
+
+/**
+ * 登録可否の判定（純粋関数）。
+ * - 状態が live で、開催期間内（JST の今日が startDate〜endDate）のときだけ登録できる。
+ * - 購読者上限は「新規登録」にだけ効く。登録済みの人の再登録（トークン更新）は
+ *   上限に達していても通す（枠は既に確保されているため）。
+ */
+export function evaluateRegistration(
+  event: Pick<EventConfig, 'status' | 'startDate' | 'endDate' | 'subscriberCap'>,
+  today: string,
+  subscriberCount: number,
+  alreadyRegistered: boolean,
+): RegistrationDecision {
+  if (event.status !== 'live') return { allowed: false, reason: 'not-live' };
+  if (today < event.startDate) return { allowed: false, reason: 'before-period' };
+  if (today > event.endDate) return { allowed: false, reason: 'after-period' };
+  if (!alreadyRegistered && subscriberCount >= event.subscriberCap) {
+    return { allowed: false, reason: 'cap-reached' };
+  }
+  return { allowed: true };
+}
+
+const REJECTION_RESPONSES: Record<
+  RegistrationRejection,
+  { status: number; error: string }
+> = {
+  'not-live': { status: 403, error: 'このイベントは現在登録を受け付けていません' },
+  'before-period': { status: 403, error: 'このイベントはまだ開催前です' },
+  'after-period': { status: 403, error: 'このイベントは終了しました' },
+  'cap-reached': { status: 409, error: '登録上限に達しました' },
+};
+
+export type RegisterVisitorResult =
+  | { ok: true; memberId: string }
+  | { ok: false; status: number; error: string };
+
+function eventRef(eventId: string) {
+  return db.collection('events').doc(eventId);
+}
+
+export async function registerEventVisitor(
+  eventId: string,
+  input: { phoneE164: string; fcmToken: string; lang?: string; now?: Date },
+): Promise<RegisterVisitorResult> {
+  const event = await getEvent(eventId);
+  if (!event) {
+    return { ok: false, status: 404, error: 'イベントが見つかりません' };
+  }
+
+  const now = input.now ?? new Date();
+  const today = jstDateString(now);
+  const memberId = memberIdForPhone(input.phoneE164);
+  const subscribersRef = eventRef(eventId).collection(EVENT_SUBCOLLECTIONS.subscribers);
+  const membersRef = eventRef(eventId).collection(EVENT_SUBCOLLECTIONS.members);
+  const subscriberRef = subscribersRef.doc(memberId);
+  const memberRef = membersRef.doc(memberId);
+
+  const [subscriberSnap, memberSnap] = await Promise.all([
+    subscriberRef.get(),
+    memberRef.get(),
+  ]);
+  const alreadyRegistered = subscriberSnap.exists;
+
+  let subscriberCount = 0;
+  if (!alreadyRegistered) {
+    const countSnap = await subscribersRef.count().get();
+    subscriberCount = countSnap.data().count;
+  }
+
+  const decision = evaluateRegistration(event, today, subscriberCount, alreadyRegistered);
+  if (!decision.allowed) {
+    const response = REJECTION_RESPONSES[decision.reason];
+    return { ok: false, status: response.status, error: response.error };
+  }
+
+  const batch = db.batch();
+  if (!memberSnap.exists) {
+    batch.set(memberRef, {
+      phone: input.phoneE164,
+      createdAt: FieldValue.serverTimestamp(),
+      lastRegisteredAt: FieldValue.serverTimestamp(),
+    });
+  } else {
+    batch.update(memberRef, { lastRegisteredAt: FieldValue.serverTimestamp() });
+  }
+  // 言語は個人の選択を優先し、無ければイベントのデフォルト言語で登録する
+  const lang = normalizeLocale(input.lang, event.defaultLocale);
+  const previousLang = alreadyRegistered
+    ? normalizeLocale(subscriberSnap.data()?.lang, event.defaultLocale)
+    : null;
+  batch.set(subscriberRef, {
+    memberId,
+    fcmToken: input.fcmToken,
+    lang,
+    registeredDate: today,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  await batch.commit();
+
+  // 配信は言語別 FCM トピック宛て。失敗しても登録自体は成立させる。
+  // 言語が変わった再登録では、旧言語のトピックから外して付け替える。
+  try {
+    if (previousLang && previousLang !== lang) {
+      await messaging.unsubscribeFromTopic(
+        [input.fcmToken],
+        localeTopic(eventId, previousLang),
+      );
+    }
+    await messaging.subscribeToTopic([input.fcmToken], localeTopic(eventId, lang));
+  } catch (error) {
+    console.warn('[EVENT] FCMトピック登録をスキップ:', error);
+  }
+
+  return { ok: true, memberId };
+}
+
+/**
+ * 現在のリセット範囲が始まった JST 日付（純粋関数）。
+ * 日次リセットは resetTime に「その日の分」として走るため、いまの時刻が
+ * resetTime より前なら、現在の範囲は昨日の resetTime から始まっている。
+ */
+export function registrationScopeStartDate(
+  event: Pick<EventConfig, 'resetTime'>,
+  now: Date,
+): string {
+  const today = jstDateString(now);
+  if (jstTimeString(now) >= event.resetTime) return today;
+  // JST に夏時間はないため、24時間前の JST 日付が「昨日」で正しい
+  return jstDateString(new Date(now.getTime() - 24 * 60 * 60 * 1000));
+}
+
+/**
+ * 購読者レコードが「現在のリセット範囲内」の登録かどうか（純粋関数）。
+ *
+ * 日次リセットは購読者を全消去するため（lib/event-reset.ts の resetTargets は
+ * どちらの方式でも subscribers を対象に含む）、通常はレコードの存在＝現行の
+ * 登録である。ただし、リセット時刻を過ぎてから tick が消去するまでの間は
+ * 前の範囲のレコードが残るため、その残存を registeredDate（登録時の JST
+ * 日付）で弾く。registeredDate を持たない旧レコードは、存在をもって
+ * 現行とみなす。
+ */
+export function isCurrentSubscriber(
+  data: Record<string, unknown> | undefined,
+  event: Pick<EventConfig, 'resetTime'>,
+  now: Date,
+): boolean {
+  if (!data) return false;
+  const registeredDate = data.registeredDate;
+  if (typeof registeredDate !== 'string') return true;
+  return registeredDate >= registrationScopeStartDate(event, now);
+}
+
+export type RegistrationStatusResult =
+  | { ok: true; registered: boolean }
+  | { ok: false; status: number; error: string };
+
+/**
+ * 来場者本人が現在のリセット範囲で登録済みかどうか。
+ * 来場者ページが、登録済みの端末に登録フローを出し直さないために使う。
+ */
+export async function getVisitorRegistrationStatus(
+  eventId: string,
+  memberId: string,
+  now: Date = new Date(),
+): Promise<RegistrationStatusResult> {
+  const event = await getEvent(eventId);
+  if (!event) {
+    return { ok: false, status: 404, error: 'イベントが見つかりません' };
+  }
+  const snap = await eventRef(eventId)
+    .collection(EVENT_SUBCOLLECTIONS.subscribers)
+    .doc(memberId)
+    .get();
+  return {
+    ok: true,
+    registered: snap.exists && isCurrentSubscriber(snap.data(), event, now),
+  };
+}
+
+export type UpdateLanguageResult =
+  | { ok: true }
+  | { ok: false; status: number; error: string };
+
+/**
+ * 登録済み購読者の言語を変更する（来場者画面の言語切替から呼ぶ）。
+ * 購読者レコードの lang と、言語別 FCM トピックの付け替えを一緒に行う。
+ */
+export async function updateSubscriberLanguage(
+  eventId: string,
+  memberId: string,
+  lang: Locale,
+): Promise<UpdateLanguageResult> {
+  const event = await getEvent(eventId);
+  if (!event) {
+    return { ok: false, status: 404, error: 'イベントが見つかりません' };
+  }
+  const ref = eventRef(eventId)
+    .collection(EVENT_SUBCOLLECTIONS.subscribers)
+    .doc(memberId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    return { ok: false, status: 404, error: '登録が見つかりません' };
+  }
+  const data = snap.data() ?? {};
+  const previous = normalizeLocale(data.lang, event.defaultLocale);
+  if (previous === lang) return { ok: true };
+
+  await ref.update({ lang, updatedAt: FieldValue.serverTimestamp() });
+
+  const token = typeof data.fcmToken === 'string' ? data.fcmToken : '';
+  if (token) {
+    try {
+      await messaging.unsubscribeFromTopic([token], localeTopic(eventId, previous));
+      await messaging.subscribeToTopic([token], localeTopic(eventId, lang));
+    } catch (error) {
+      console.warn('[EVENT] 言語変更時のトピック付け替えをスキップ:', error);
+    }
+  }
+  return { ok: true };
+}

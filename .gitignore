@@ -1,0 +1,11 @@
+node_modules/
+.next/
+.env*
+!.env.example
+npm-debug.log*
+tsconfig.tsbuildinfo
+
+# サービスアカウント等の鍵ファイルは絶対にコミットしない
+*service-account*.json
+sa.json
+*-sa.json
