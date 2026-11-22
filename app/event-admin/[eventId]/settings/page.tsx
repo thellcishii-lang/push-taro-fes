@@ -39,6 +39,7 @@ import { AdminNav } from '../AdminNav';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import { useDropzone } from 'react-dropzone';
 import { VisitorQr } from '@/components/VisitorQr';
+import { VenueMap } from '@/components/VenueMap';
 
 interface InfoPdf {
   id: string;
@@ -108,6 +109,14 @@ const dangerButtonStyle: React.CSSProperties = {
   cursor: 'pointer',
 };
 
+function padSegmentSlots(
+  channels: Array<{ id: string; name: string }>,
+): Array<{ id: string; name: string }> {
+  const slots = channels.map((c) => ({ id: c.id, name: c.name }));
+  while (slots.length < 3) slots.push({ id: '', name: '' });
+  return slots;
+}
+
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: 18,
   fontWeight: 800,
@@ -130,6 +139,26 @@ export default function EventSettingsAdminPage() {
     { title: '', url: '' },
   ]);
   const [linksMessage, setLinksMessage] = useState('');
+  const [segmentSlots, setSegmentSlots] = useState<Array<{ id: string; name: string }>>([
+    { id: '', name: '' },
+    { id: '', name: '' },
+    { id: '', name: '' },
+  ]);
+  const [segmentsMessage, setSegmentsMessage] = useState('');
+  const [segmentsSaving, setSegmentsSaving] = useState(false);
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number; zoom: number }>({
+    lat: 35.6812,
+    lng: 139.7671,
+    zoom: 13,
+  });
+  const [mapConfigured, setMapConfigured] = useState(false);
+  const [mapPins, setMapPins] = useState<
+    Array<{ id: string; label: string; lat: number; lng: number }>
+  >([]);
+  const [mapMode, setMapMode] = useState<'pin' | 'center'>('pin');
+  const [mapSearch, setMapSearch] = useState('');
+  const [mapMessage, setMapMessage] = useState('');
+  const [mapSaving, setMapSaving] = useState(false);
   const [linksSaving, setLinksSaving] = useState(false);
   const [pdfTitle, setPdfTitle] = useState('');
   const [pdfUploading, setPdfUploading] = useState(false);
@@ -193,6 +222,13 @@ export default function EventSettingsAdminPage() {
           url: links[i]?.url ?? '',
         })),
       );
+      const channels: Array<{ id: string; name: string }> = data.event?.channels ?? [];
+      setSegmentSlots(padSegmentSlots(channels));
+      if (data.event?.venueMap) {
+        setMapCenter(data.event.venueMap);
+        setMapConfigured(true);
+      }
+      if (Array.isArray(data.event?.pins)) setMapPins(data.event.pins);
     } catch {
       // リンクが読み込めなくてもPDF管理は止めない
     }
@@ -206,6 +242,91 @@ export default function EventSettingsAdminPage() {
     setLinkSlots((slots) =>
       slots.map((slot, i) => (i === index ? { ...slot, [field]: value } : slot)),
     );
+  };
+
+  const updateSegmentSlot = (index: number, name: string) => {
+    setSegmentSlots((slots) =>
+      slots.map((slot, i) => (i === index ? { ...slot, name } : slot)),
+    );
+  };
+
+  const handleSaveSegments = async () => {
+    setSegmentsSaving(true);
+    setSegmentsMessage('');
+    try {
+      const data = await callApi(`/api/events/${eventId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ channels: segmentSlots }),
+      });
+      setSegmentsMessage(adminText(locale, 'segmentsSaved'));
+      const channels: Array<{ id: string; name: string }> = data.event?.channels ?? [];
+      setSegmentSlots(padSegmentSlots(channels));
+    } catch (e) {
+      setSegmentsMessage(
+        e instanceof Error ? e.message : adminText(locale, 'segmentsSaveFailed'),
+      );
+    } finally {
+      setSegmentsSaving(false);
+    }
+  };
+
+  const handleMapSearch = async () => {
+    const q = mapSearch.trim();
+    if (!q) return;
+    setMapMessage('');
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`,
+      );
+      const results = (await res.json()) as Array<{ lat: string; lon: string }>;
+      if (!results.length) {
+        setMapMessage(adminText(locale, 'mapSearchNotFound'));
+        return;
+      }
+      setMapCenter({
+        lat: Number.parseFloat(results[0].lat),
+        lng: Number.parseFloat(results[0].lon),
+        zoom: 16,
+      });
+      setMapConfigured(true);
+    } catch {
+      setMapMessage(adminText(locale, 'mapSearchNotFound'));
+    }
+  };
+
+  const handleMapClick = (lat: number, lng: number) => {
+    if (mapMode === 'center') {
+      setMapCenter((prev) => ({ lat, lng, zoom: Math.max(prev.zoom, 16) }));
+      setMapConfigured(true);
+    } else {
+      setMapPins((pins) =>
+        pins.length >= 30 ? pins : [...pins, { id: '', label: '', lat, lng }],
+      );
+    }
+  };
+
+  const handleSaveMap = async () => {
+    setMapSaving(true);
+    setMapMessage('');
+    try {
+      const data = await callApi(`/api/events/${eventId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          venueMap: mapConfigured ? mapCenter : null,
+          pins: mapPins,
+        }),
+      });
+      setMapMessage(adminText(locale, 'mapSaved'));
+      if (data.event?.venueMap) {
+        setMapCenter(data.event.venueMap);
+        setMapConfigured(true);
+      }
+      if (Array.isArray(data.event?.pins)) setMapPins(data.event.pins);
+    } catch (e) {
+      setMapMessage(e instanceof Error ? e.message : adminText(locale, 'mapSaveFailed'));
+    } finally {
+      setMapSaving(false);
+    }
   };
 
   const handleSaveLinks = async () => {
@@ -458,6 +579,163 @@ export default function EventSettingsAdminPage() {
             </span>
           </button>
           {linksMessage && <p style={adminFeedbackStyle}>{linksMessage}</p>}
+        </div>
+      </section>
+
+      <section style={{ marginTop: 32 }}>
+        <h2 style={sectionTitleStyle}>{adminText(locale, 'segmentsTitle')}</h2>
+        <p style={{ fontSize: 12.5, color: '#64748b', marginTop: 5 }}>
+          {adminText(locale, 'segmentsNote')}
+        </p>
+        <div style={{ ...cardStyle, marginTop: 12, padding: 24 }}>
+          {segmentSlots.map((slot, i) => (
+            <label key={i} style={{ ...labelStyle, marginBottom: 10 }}>
+              {adminText(locale, 'segmentNameLabel', { n: String(i + 1) })}
+              <input
+                style={inputStyle}
+                value={slot.name}
+                onChange={(e) => updateSegmentSlot(i, e.target.value)}
+                placeholder={adminText(locale, 'segmentNamePlaceholder')}
+              />
+            </label>
+          ))}
+          {segmentSlots.length < 10 && (
+            <button
+              onClick={() =>
+                setSegmentSlots((slots) => [...slots, { id: '', name: '' }])
+              }
+              style={{
+                padding: '9px 16px',
+                fontSize: 13,
+                fontWeight: 700,
+                borderRadius: 12,
+                border: '1px dashed #94a3b8',
+                backgroundColor: '#ffffff',
+                color: VIOLET,
+                cursor: 'pointer',
+              }}
+            >
+              ＋ {adminText(locale, 'segmentAddButton')}
+            </button>
+          )}
+          <p style={{ fontSize: 12, color: '#64748b', marginTop: 10 }}>
+            {adminText(locale, 'segmentsMaxNote')}
+          </p>
+          <button
+            onClick={() => void handleSaveSegments()}
+            disabled={segmentsSaving}
+            style={{ ...primaryButtonStyle, marginTop: 12 }}
+          >
+            <span style={adminButtonContentStyle}>
+              {segmentsSaving && <ButtonSpinner />}
+              {adminText(locale, 'segmentsSaveButton')}
+            </span>
+          </button>
+          {segmentsMessage && <p style={adminFeedbackStyle}>{segmentsMessage}</p>}
+        </div>
+      </section>
+
+      <section style={{ marginTop: 32 }}>
+        <h2 style={sectionTitleStyle}>{adminText(locale, 'mapSettingsTitle')}</h2>
+        <p style={{ fontSize: 12.5, color: '#64748b', marginTop: 5 }}>
+          {adminText(locale, 'mapSettingsNote')}
+        </p>
+        <div style={{ ...cardStyle, marginTop: 12, padding: 24 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <input
+              style={{ ...inputStyle, marginTop: 0, flex: '1 1 220px' }}
+              value={mapSearch}
+              onChange={(e) => setMapSearch(e.target.value)}
+              placeholder={adminText(locale, 'mapSearchPlaceholder')}
+            />
+            <button
+              onClick={() => void handleMapSearch()}
+              style={{ ...primaryButtonStyle, padding: '11px 20px', fontSize: 14 }}
+            >
+              {adminText(locale, 'mapSearchButton')}
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+            {(['pin', 'center'] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setMapMode(mode)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 999,
+                  border: `1px solid ${mapMode === mode ? VIOLET : '#cbd5e1'}`,
+                  backgroundColor: mapMode === mode ? VIOLET : '#ffffff',
+                  color: mapMode === mode ? '#ffffff' : '#0f172a',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                {adminText(locale, mode === 'pin' ? 'mapModePinButton' : 'mapModeCenterButton')}
+              </button>
+            ))}
+          </div>
+          <p style={{ fontSize: 12, color: '#64748b', marginTop: 8 }}>
+            {adminText(locale, mapMode === 'pin' ? 'mapModePinNote' : 'mapModeCenterNote')}
+          </p>
+          <div style={{ marginTop: 12 }}>
+            <VenueMap
+              center={mapCenter}
+              pins={mapPins.filter((pin) => pin.label.trim())}
+              editable
+              onMapClick={handleMapClick}
+              height={360}
+            />
+          </div>
+          {mapPins.map((pin, i) => (
+            <div
+              key={i}
+              style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}
+            >
+              <input
+                style={{ ...inputStyle, marginTop: 0, flex: 1 }}
+                value={pin.label}
+                onChange={(e) =>
+                  setMapPins((pins) =>
+                    pins.map((p, j) => (j === i ? { ...p, label: e.target.value } : p)),
+                  )
+                }
+                placeholder={adminText(locale, 'mapPinLabelPlaceholder')}
+              />
+              <span style={{ fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                {pin.lat.toFixed(4)}, {pin.lng.toFixed(4)}
+              </span>
+              <button
+                onClick={() =>
+                  setMapPins((pins) => pins.filter((_, j) => j !== i))
+                }
+                style={{
+                  padding: '7px 12px',
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  borderRadius: 10,
+                  border: '1px solid #fca5a5',
+                  backgroundColor: '#ffffff',
+                  color: '#b91c1c',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {adminText(locale, 'timetableDeleteButton')}
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={() => void handleSaveMap()}
+            disabled={mapSaving}
+            style={{ ...primaryButtonStyle, marginTop: 16 }}
+          >
+            <span style={adminButtonContentStyle}>
+              {mapSaving && <ButtonSpinner />}
+              {adminText(locale, 'mapSaveButton')}
+            </span>
+          </button>
+          {mapMessage && <p style={adminFeedbackStyle}>{mapMessage}</p>}
         </div>
       </section>
     </AdminShell>

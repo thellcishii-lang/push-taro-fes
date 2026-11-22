@@ -32,6 +32,7 @@ import { uiText } from '@/lib/ui-text';
 import { buildCouponGroups } from '@/lib/coupon-groups';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
+import { VenueMap, type VenueMapLocation } from '@/components/VenueMap';
 
 interface PublicEventLink {
   title: string;
@@ -49,6 +50,12 @@ interface PublicEvent {
   admissionQrEnabled: boolean;
   /** 主催者リンク（最大3件）。未登録なら空で、画面に何も出さない */
   links?: PublicEventLink[];
+  /** 配信チャンネル（セグメント）。未登録なら空で、画面に何も出さない */
+  channels?: Array<{ id: string; name: string }>;
+  /** 会場マップの中心。未設定なら地図を出さない */
+  venueMap?: { lat: number; lng: number; zoom: number } | null;
+  /** 会場マップのピン */
+  pins?: Array<{ id: string; label: string; lat: number; lng: number }>;
 }
 
 interface AdmissionQrState {
@@ -69,6 +76,17 @@ interface PublicCoupon {
   description: string;
   exhibitorName: string;
   keywords: string[];
+}
+
+interface PublicTimetableEntry {
+  id: string;
+  date: string;
+  stage: string;
+  startTime: string;
+  endTime: string;
+  title: string;
+  note: string;
+  changedAt: string | null;
 }
 
 interface MemberClaim {
@@ -189,6 +207,44 @@ function PinLogo() {
   );
 }
 
+function ChannelChips({
+  channels,
+  selected,
+  onToggle,
+}: {
+  channels: Array<{ id: string; name: string }>;
+  selected: string[];
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+      {channels.map((channel) => {
+        const active = selected.includes(channel.id);
+        return (
+          <button
+            key={channel.id}
+            onClick={() => onToggle(channel.id)}
+            aria-pressed={active}
+            style={{
+              padding: '9px 16px',
+              borderRadius: 999,
+              border: `1px solid ${active ? VIOLET : '#cbd5e1'}`,
+              backgroundColor: active ? VIOLET : '#ffffff',
+              color: active ? '#ffffff' : '#0f172a',
+              fontSize: 13.5,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            {active ? '✓ ' : ''}
+            {channel.name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function EventVisitorPage() {
   const params = useParams<{ eventId: string }>();
   const eventId = params.eventId;
@@ -202,6 +258,13 @@ export default function EventVisitorPage() {
   const [coupons, setCoupons] = useState<PublicCoupon[]>([]);
   const [myClaims, setMyClaims] = useState<MemberClaim[]>([]);
   const [notices, setNotices] = useState<EventNotice[]>([]);
+  const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
+  const [myLocation, setMyLocation] = useState<VenueMapLocation | null>(null);
+  const [mapFocus, setMapFocus] = useState<{ lat: number; lng: number; zoom: number } | null>(null);
+  const [mapError, setMapError] = useState('');
+  const [ttEntries, setTtEntries] = useState<PublicTimetableEntry[]>([]);
+  const [ttDate, setTtDate] = useState<string | null>(null);
+  const [ttStage, setTtStage] = useState<string | null>(null);
   const [couponMessage, setCouponMessage] = useState('');
   const [infoPdfs, setInfoPdfs] = useState<InfoPdf[]>([]);
   // QRを開いている取得済みクーポン。undefined = 未操作（先頭の未使用分を開く）
@@ -281,6 +344,31 @@ export default function EventVisitorPage() {
     });
   }, [event, user]);
 
+  // タイムテーブルは公開情報として読み込む（予定が無ければセクション自体を出さない）。
+  useEffect(() => {
+    if (!event) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/events/${eventId}/timetable`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled || !Array.isArray(data.entries)) return;
+        const entries = data.entries as PublicTimetableEntry[];
+        setTtEntries(entries);
+        const dates = [...new Set(entries.map((e) => e.date))].sort();
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        setTtDate((prev) => prev ?? (dates.includes(todayStr) ? todayStr : dates[0] ?? null));
+      } catch {
+        // タイムテーブルが読めなくても画面は止めない
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [event, eventId]);
+
   // 登録済みの端末で開き直したときは、登録フローを出し直さない。
   // 端末認証のセッションが端末に残っていればサーバーに登録状態を確認し、
   // 現在のリセット範囲で登録済みならそのまま利用画面（done）へ進める。
@@ -355,6 +443,72 @@ export default function EventVisitorPage() {
     }
   };
 
+  // 登録済みになったら、保存済みのチャンネル選択を読み込む。
+  useEffect(() => {
+    if (phase !== 'done' || !user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const idToken = await user.getIdToken();
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        headers['Authori' + 'zation'] = `Bearer ${idToken}`;
+        const res = await fetch(`/api/events/${eventId}/channels`, { headers });
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok && Array.isArray(data.selected)) {
+          setSelectedChannels(data.selected);
+        }
+      } catch {
+        // 読めなくても画面は止めない
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, user, eventId]);
+
+  const toggleChannel = async (channelId: string) => {
+    const next = selectedChannels.includes(channelId)
+      ? selectedChannels.filter((id) => id !== channelId)
+      : [...selectedChannels, channelId];
+    setSelectedChannels(next);
+    if (phase !== 'done' || !user) return;
+    try {
+      const idToken = await user.getIdToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      headers['Authori' + 'zation'] = `Bearer ${idToken}`;
+      const res = await fetch(`/api/events/${eventId}/channels`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ channelIds: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && Array.isArray(data.selected)) setSelectedChannels(data.selected);
+    } catch {
+      // 保存に失敗しても表示は選択どおりにしておく（次回登録時に送り直される）
+    }
+  };
+
+  const handleShowMyLocation = () => {
+    setMapError('');
+    if (!('geolocation' in navigator)) {
+      setMapError(uiText(locale, 'mapLocationFailed'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const loc = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        };
+        setMyLocation(loc);
+        setMapFocus({ lat: loc.lat, lng: loc.lng, zoom: 17 });
+      },
+      () => setMapError(uiText(locale, 'mapLocationFailed')),
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  };
+
   const handleRegister = async () => {
     if (!event) return;
     setBusy(true);
@@ -393,7 +547,7 @@ export default function EventVisitorPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ fcmToken, lang: locale }),
+        body: JSON.stringify({ fcmToken, lang: locale, channelIds: selectedChannels }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -820,6 +974,181 @@ export default function EventVisitorPage() {
         </section>
       )}
 
+      {event.venueMap && (
+        <section style={{ marginTop: 24 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 800 }}>{uiText(locale, 'mapTitle')}</h2>
+          <div style={{ marginTop: 10 }}>
+            <VenueMap
+              center={mapFocus ?? event.venueMap}
+              pins={event.pins ?? []}
+              myLocation={myLocation}
+              height={320}
+            />
+          </div>
+          <button
+            onClick={handleShowMyLocation}
+            style={{
+              marginTop: 10,
+              padding: '10px 18px',
+              borderRadius: 999,
+              border: 'none',
+              backgroundColor: VIOLET,
+              color: '#ffffff',
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            📍 {uiText(locale, 'mapMyLocationButton')}
+          </button>
+          {mapError && (
+            <p style={{ fontSize: 13, color: '#b91c1c', marginTop: 8 }}>{mapError}</p>
+          )}
+        </section>
+      )}
+
+      {ttEntries.length > 0 && (
+        <section style={{ marginTop: 24 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 800 }}>{uiText(locale, 'timetableTitle')}</h2>
+          {(() => {
+            const dates = [...new Set(ttEntries.map((e) => e.date))].sort();
+            const activeDate = ttDate && dates.includes(ttDate) ? ttDate : dates[0];
+            const dayEntries = ttEntries.filter((e) => e.date === activeDate);
+            const stages = [...new Set(dayEntries.map((e) => e.stage))];
+            const activeStage =
+              ttStage && stages.includes(ttStage) ? ttStage : stages[0];
+            const visible = dayEntries
+              .filter((e) => e.stage === activeStage)
+              .sort((a, b) => a.startTime.localeCompare(b.startTime));
+            const now = new Date();
+            const nowStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            const chipStyle = (active: boolean): React.CSSProperties => ({
+              padding: '7px 14px',
+              borderRadius: 999,
+              border: `1px solid ${active ? VIOLET : '#cbd5e1'}`,
+              backgroundColor: active ? VIOLET : '#ffffff',
+              color: active ? '#ffffff' : '#0f172a',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: 'pointer',
+            });
+            return (
+              <>
+                {dates.length > 1 && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+                    {dates.map((d) => (
+                      <button
+                        key={d}
+                        style={chipStyle(d === activeDate)}
+                        onClick={() => {
+                          setTtDate(d);
+                          setTtStage(null);
+                        }}
+                      >
+                        {d.slice(5).replace('-', '/')}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {stages.length > 1 && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+                    {stages.map((stageName) => (
+                      <button
+                        key={stageName}
+                        style={chipStyle(stageName === activeStage)}
+                        onClick={() => setTtStage(stageName)}
+                      >
+                        {stageName}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div style={{ marginTop: 10 }}>
+                  {visible.map((entry) => {
+                    const isNow =
+                      activeDate === todayStr &&
+                      entry.startTime <= nowStr &&
+                      nowStr < entry.endTime;
+                    return (
+                      <div
+                        key={entry.id}
+                        style={{
+                          ...cardStyle,
+                          padding: '12px 14px',
+                          marginTop: 8,
+                          border: isNow ? `2px solid ${VIOLET_BRIGHT}` : cardStyle.border,
+                          display: 'flex',
+                          gap: 12,
+                          alignItems: 'flex-start',
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 800,
+                            color: VIOLET,
+                            minWidth: 104,
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          {entry.startTime}
+                          <span style={{ color: '#94a3b8', fontWeight: 600 }}>〜{entry.endTime}</span>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.45 }}>
+                            {entry.title}
+                            {isNow && (
+                              <span
+                                style={{
+                                  marginLeft: 8,
+                                  fontSize: 11,
+                                  fontWeight: 800,
+                                  color: '#ffffff',
+                                  backgroundColor: VIOLET_BRIGHT,
+                                  borderRadius: 999,
+                                  padding: '2px 8px',
+                                  verticalAlign: 'middle',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {uiText(locale, 'timetableNow')}
+                              </span>
+                            )}
+                            {entry.changedAt && (
+                              <span
+                                style={{
+                                  marginLeft: 8,
+                                  fontSize: 11,
+                                  fontWeight: 800,
+                                  color: '#b45309',
+                                  backgroundColor: '#fef3c7',
+                                  borderRadius: 999,
+                                  padding: '2px 8px',
+                                  verticalAlign: 'middle',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {uiText(locale, 'timetableChanged')}
+                              </span>
+                            )}
+                          </div>
+                          {entry.note && (
+                            <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 3 }}>
+                              {entry.note}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            );
+          })()}
+        </section>
+      )}
+
       {phase === 'unavailable' && (
         <p style={{ fontSize: 15, marginTop: 24 }}>
           {event.status === 'ended'
@@ -831,6 +1160,21 @@ export default function EventVisitorPage() {
       {phase === 'register' && (
         <section style={{ ...cardStyle, marginTop: 20, padding: 16 }}>
           <p style={{ fontSize: 14, margin: 0 }}>{uiText(locale, 'registerIntro')}</p>
+          {event.channels && event.channels.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <p style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>
+                {uiText(locale, 'channelsTitle')}
+              </p>
+              <p style={{ fontSize: 12.5, color: '#64748b', marginTop: 6 }}>
+                {uiText(locale, 'channelsNote')}
+              </p>
+              <ChannelChips
+                channels={event.channels}
+                selected={selectedChannels}
+                onToggle={(id) => void toggleChannel(id)}
+              />
+            </div>
+          )}
         </section>
       )}
 
@@ -843,6 +1187,22 @@ export default function EventVisitorPage() {
               ? uiText(locale, 'keepPhonesNote')
               : uiText(locale, 'fullDailyNote')}
           </p>
+        </section>
+      )}
+
+      {phase === 'done' && event.channels && event.channels.length > 0 && (
+        <section style={{ ...cardStyle, marginTop: 20, padding: 16 }}>
+          <p style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>
+            {uiText(locale, 'channelsTitle')}
+          </p>
+          <p style={{ fontSize: 12.5, color: '#64748b', marginTop: 6 }}>
+            {uiText(locale, 'channelsNote')}
+          </p>
+          <ChannelChips
+            channels={event.channels}
+            selected={selectedChannels}
+            onToggle={(id) => void toggleChannel(id)}
+          />
         </section>
       )}
 

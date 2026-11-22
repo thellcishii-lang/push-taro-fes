@@ -29,6 +29,38 @@ export interface EventLink {
   url: string;
 }
 
+/**
+ * 配信チャンネル（セグメント）。主催者が最大 MAX_EVENT_CHANNELS 件まで作り、
+ * 来場者が受け取りたいチャンネルを選ぶ（オプトイン）。全体配信は常に届く。
+ * イベントドキュメントの channels フィールドに配列で持つ。id は購読の
+ * 紐付けに使うため、名前を変えても変えない。名前は原文のまま表示する。
+ */
+export interface EventChannel {
+  id: string;
+  name: string;
+}
+
+/**
+ * 会場マップの中心（OpenStreetMap 上の座標）。主催者が設定画面で決める。
+ * 未設定なら null で、来場者画面に地図は出ない。
+ */
+export interface EventVenueMap {
+  lat: number;
+  lng: number;
+  zoom: number;
+}
+
+/**
+ * 会場マップのピン（ステージ・フード・トイレ等の場所）。
+ * 主催者が地図をタップして置く。id は名前を変えても変えない。
+ */
+export interface EventPin {
+  id: string;
+  label: string;
+  lat: number;
+  lng: number;
+}
+
 export interface EventConfig {
   id: string;
   /** イベント名（例: 展示会名） */
@@ -61,6 +93,16 @@ export interface EventConfig {
    */
   links: EventLink[];
   /**
+   * 配信チャンネル（セグメント、最大 MAX_EVENT_CHANNELS 件）。
+   * 未登録なら空配列。導入前に作られたイベントには項目自体が無いため、
+   * 読み取り時は空配列に倒す。
+   */
+  channels: EventChannel[];
+  /** 会場マップの中心。未設定は null */
+  venueMap: EventVenueMap | null;
+  /** 会場マップのピン（最大 MAX_EVENT_PINS 件） */
+  pins: EventPin[];
+  /**
    * クーポン上限（イベント全体の件数）。購読者上限と同じく契約枠の軸なので、
    * 変更は運営側のみ。既定は MAX_COUPONS_PER_EVENT。
    */
@@ -89,6 +131,8 @@ export const EVENT_SUBCOLLECTIONS = {
   claims: 'claims',
   /** クーポン消込記録（端末キーに紐づく） */
   redemptions: 'redemptions',
+  /** タイムテーブル（FES。日次リセット対象外、終了処理でのみ消す） */
+  timetable: 'timetable',
 } as const;
 
 export type EventSubcollection =
@@ -104,6 +148,10 @@ export const MAX_COUPONS_PER_EVENT = 100;
 export const MAX_CONCURRENT_EVENTS = 3;
 export const MAX_INFO_PDFS = 5;
 export const MAX_EVENT_LINKS = 3;
+export const MAX_EVENT_CHANNELS = 10;
+export const MAX_EVENT_PINS = 30;
+export const MAX_PIN_LABEL_LENGTH = 30;
+export const MAX_CHANNEL_NAME_LENGTH = 50;
 export const DEFAULT_RESET_TIME = '00:00';
 export const DEFAULT_BACKUP_RETENTION_DAYS = 30;
 export const DEFAULT_RESET_MODE: EventResetMode = 'full-daily';
@@ -122,6 +170,9 @@ export interface CreateEventInput {
   defaultLocale?: Locale;
   admissionQrEnabled?: boolean;
   links?: EventLink[];
+  channels?: EventChannel[];
+  venueMap?: EventVenueMap | null;
+  pins?: EventPin[];
   couponCap?: number;
   backupRetentionDays?: number;
 }
@@ -132,6 +183,11 @@ const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 /** 購読者の言語別 FCM トピック名。配信は言語ごとにこのトピックへ送る。 */
 export function localeTopic(eventId: string, locale: Locale): string {
   return `event_${eventId}_users_${locale}`;
+}
+
+/** チャンネル購読者の言語別 FCM トピック名。 */
+export function channelTopic(eventId: string, channelId: string, locale: Locale): string {
+  return `event_${eventId}_ch_${channelId}_${locale}`;
 }
 
 export function jstDateString(date: Date): string {
@@ -210,6 +266,180 @@ export function parseEventLinks(value: unknown): EventLink[] {
     }
   }
   return links;
+}
+
+const CHANNEL_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
+
+function readChannelFields(item: unknown): { id: string; name: string } | null {
+  if (!item || typeof item !== 'object') return null;
+  const record = item as Record<string, unknown>;
+  return {
+    id: typeof record.id === 'string' ? record.id : '',
+    name: typeof record.name === 'string' ? record.name.trim() : '',
+  };
+}
+
+function generateChannelId(): string {
+  return `ch${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * 配信チャンネルの入力を検証して正規化する（書き込み用。不正なら throw）。
+ * - 名前が空の枠は未指定として読み飛ばす（設定画面の空枠がこれに当たる）
+ * - id は保持し、無い・重複・形式不正のものには新しい id を振る
+ * - 実質の件数は最大 MAX_EVENT_CHANNELS 件
+ */
+export function normalizeEventChannels(input: unknown): EventChannel[] {
+  if (input === undefined || input === null) return [];
+  if (!Array.isArray(input)) throw new Error('セグメントの形式が不正です');
+  const channels: EventChannel[] = [];
+  const usedIds = new Set<string>();
+  for (const item of input) {
+    const fields = readChannelFields(item);
+    if (!fields) throw new Error('セグメントの形式が不正です');
+    if (!fields.name) continue;
+    if (fields.name.length > MAX_CHANNEL_NAME_LENGTH) {
+      throw new Error(`セグメント名は${MAX_CHANNEL_NAME_LENGTH}文字までです`);
+    }
+    let id = fields.id;
+    if (!CHANNEL_ID_PATTERN.test(id) || usedIds.has(id)) {
+      id = generateChannelId();
+    }
+    usedIds.add(id);
+    channels.push({ id, name: fields.name });
+  }
+  if (channels.length > MAX_EVENT_CHANNELS) {
+    throw new Error(`セグメントは最大${MAX_EVENT_CHANNELS}件までです`);
+  }
+  return channels;
+}
+
+/**
+ * 保存済みの配信チャンネルを防御的に読む（読み取り用。throw しない）。
+ * 項目が無い旧イベントは空配列。不正な要素は落とし、上限で切り詰める。
+ */
+export function parseEventChannels(value: unknown): EventChannel[] {
+  if (!Array.isArray(value)) return [];
+  const channels: EventChannel[] = [];
+  const usedIds = new Set<string>();
+  for (const item of value) {
+    const fields = readChannelFields(item);
+    if (
+      fields &&
+      fields.name &&
+      CHANNEL_ID_PATTERN.test(fields.id) &&
+      !usedIds.has(fields.id)
+    ) {
+      usedIds.add(fields.id);
+      channels.push({ id: fields.id, name: fields.name });
+      if (channels.length >= MAX_EVENT_CHANNELS) break;
+    }
+  }
+  return channels;
+}
+
+function isValidLatLng(lat: unknown, lng: unknown): boolean {
+  return (
+    typeof lat === 'number' &&
+    Number.isFinite(lat) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    typeof lng === 'number' &&
+    Number.isFinite(lng) &&
+    lng >= -180 &&
+    lng <= 180
+  );
+}
+
+/**
+ * 会場マップ中心の入力を検証して正規化する（書き込み用）。
+ * 未指定（null/undefined）は null。座標が不正なら throw。
+ */
+export function normalizeVenueMap(input: unknown): EventVenueMap | null {
+  if (input === undefined || input === null) return null;
+  if (typeof input !== 'object') throw new Error('会場マップの形式が不正です');
+  const record = input as Record<string, unknown>;
+  if (!isValidLatLng(record.lat, record.lng)) {
+    throw new Error('会場マップの座標が不正です');
+  }
+  const zoomRaw = typeof record.zoom === 'number' ? record.zoom : 16;
+  const zoom = Math.min(19, Math.max(1, Math.round(zoomRaw)));
+  return { lat: record.lat as number, lng: record.lng as number, zoom };
+}
+
+/** 保存済みの会場マップ中心を防御的に読む（読み取り用）。 */
+export function parseVenueMap(value: unknown): EventVenueMap | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  if (!isValidLatLng(record.lat, record.lng)) return null;
+  const zoomRaw = typeof record.zoom === 'number' ? record.zoom : 16;
+  return {
+    lat: record.lat as number,
+    lng: record.lng as number,
+    zoom: Math.min(19, Math.max(1, Math.round(zoomRaw))),
+  };
+}
+
+const PIN_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
+
+function generatePinId(): string {
+  return `pin${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * 会場ピンの入力を検証して正規化する（書き込み用。不正なら throw）。
+ * ラベルが空のピンは読み飛ばす。座標が不正なピンはエラーにする
+ * （地図に出ないピンが黙って消えると主催者が気づけないため）。
+ */
+export function normalizeEventPins(input: unknown): EventPin[] {
+  if (input === undefined || input === null) return [];
+  if (!Array.isArray(input)) throw new Error('ピンの形式が不正です');
+  const pins: EventPin[] = [];
+  const usedIds = new Set<string>();
+  for (const item of input) {
+    if (!item || typeof item !== 'object') throw new Error('ピンの形式が不正です');
+    const record = item as Record<string, unknown>;
+    const label = typeof record.label === 'string' ? record.label.trim() : '';
+    if (!label) continue;
+    if (label.length > MAX_PIN_LABEL_LENGTH) {
+      throw new Error(`ピンの名前は${MAX_PIN_LABEL_LENGTH}文字までです`);
+    }
+    if (!isValidLatLng(record.lat, record.lng)) {
+      throw new Error('ピンの座標が不正です');
+    }
+    let id = typeof record.id === 'string' ? record.id : '';
+    if (!PIN_ID_PATTERN.test(id) || usedIds.has(id)) id = generatePinId();
+    usedIds.add(id);
+    pins.push({ id, label, lat: record.lat as number, lng: record.lng as number });
+  }
+  if (pins.length > MAX_EVENT_PINS) {
+    throw new Error(`ピンは最大${MAX_EVENT_PINS}件までです`);
+  }
+  return pins;
+}
+
+/** 保存済みの会場ピンを防御的に読む（読み取り用。throw しない）。 */
+export function parseEventPins(value: unknown): EventPin[] {
+  if (!Array.isArray(value)) return [];
+  const pins: EventPin[] = [];
+  const usedIds = new Set<string>();
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const record = item as Record<string, unknown>;
+    const label = typeof record.label === 'string' ? record.label.trim() : '';
+    const id = typeof record.id === 'string' ? record.id : '';
+    if (
+      label &&
+      PIN_ID_PATTERN.test(id) &&
+      !usedIds.has(id) &&
+      isValidLatLng(record.lat, record.lng)
+    ) {
+      usedIds.add(id);
+      pins.push({ id, label, lat: record.lat as number, lng: record.lng as number });
+      if (pins.length >= MAX_EVENT_PINS) break;
+    }
+  }
+  return pins;
 }
 
 /**

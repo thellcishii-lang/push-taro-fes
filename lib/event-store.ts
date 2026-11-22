@@ -17,8 +17,14 @@ import {
   MAX_COUPONS_PER_EVENT,
   isValidResetTime,
   EVENT_SUBCOLLECTIONS,
+  normalizeEventChannels,
   normalizeEventLinks,
+  normalizeEventPins,
+  normalizeVenueMap,
+  parseEventChannels,
   parseEventLinks,
+  parseEventPins,
+  parseVenueMap,
   receivesCapsPropagation,
 } from './event';
 
@@ -44,6 +50,9 @@ function toEventConfig(id: string, data: FirebaseFirestore.DocumentData): EventC
     admissionQrEnabled: data.admissionQrEnabled === true,
     // 主催者リンクは導入前のイベントには項目自体が無い
     links: parseEventLinks(data.links),
+    channels: parseEventChannels(data.channels),
+    venueMap: parseVenueMap(data.venueMap),
+    pins: parseEventPins(data.pins),
     couponCap: data.couponCap ?? MAX_COUPONS_PER_EVENT,
     backupRetentionDays: data.backupRetentionDays ?? DEFAULT_BACKUP_RETENTION_DAYS,
     status: data.status,
@@ -78,6 +87,9 @@ export async function createEvent(input: CreateEventInput): Promise<EventConfig>
     defaultLocale: input.defaultLocale ?? DEFAULT_LOCALE,
     admissionQrEnabled: input.admissionQrEnabled ?? false,
     links: normalizeEventLinks(input.links),
+    channels: normalizeEventChannels(input.channels),
+    venueMap: normalizeVenueMap(input.venueMap),
+    pins: normalizeEventPins(input.pins),
     couponCap: input.couponCap ?? MAX_COUPONS_PER_EVENT,
     backupRetentionDays:
       input.backupRetentionDays ?? DEFAULT_BACKUP_RETENTION_DAYS,
@@ -237,6 +249,9 @@ export type UpdateEventInput = Partial<
     | 'defaultLocale'
     | 'admissionQrEnabled'
     | 'links'
+    | 'channels'
+    | 'venueMap'
+    | 'pins'
     | 'couponCap'
     | 'backupRetentionDays'
     | 'status'
@@ -264,6 +279,15 @@ export async function updateEvent(
   // 主催者リンクは検証してから正規化した形で保存する
   const links =
     patch.links !== undefined ? normalizeEventLinks(patch.links) : undefined;
+  // 配信チャンネルも同じく検証・正規化してから保存する
+  const channels =
+    patch.channels !== undefined
+      ? normalizeEventChannels(patch.channels)
+      : undefined;
+  const venueMap =
+    patch.venueMap !== undefined ? normalizeVenueMap(patch.venueMap) : undefined;
+  const pins =
+    patch.pins !== undefined ? normalizeEventPins(patch.pins) : undefined;
   if (
     patch.startDate !== undefined &&
     patch.endDate !== undefined &&
@@ -277,6 +301,9 @@ export async function updateEvent(
     .update({
       ...patch,
       ...(links !== undefined ? { links } : {}),
+      ...(channels !== undefined ? { channels } : {}),
+      ...(venueMap !== undefined ? { venueMap } : {}),
+      ...(pins !== undefined ? { pins } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
 }
