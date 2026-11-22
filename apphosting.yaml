@@ -69,5 +69,3 @@ env:
     value: push-taro-fes
   - variable: FIREBASE_CLIENT_EMAIL
     value: firebase-adminsdk-fbsvc@push-taro-fes.iam.gserviceaccount.com
-  - variable: FIREBASE_PRIVATE_KEY
-    secret: FIREBASE_PRIVATE_KEY
