@@ -30,7 +30,7 @@ export async function GET(
   const pagePath = `/e/${eventId}`;
   const manifest = {
     name: eventName ? `${eventName}｜Push-taro FES` : 'Push-taro FES',
-    short_name: eventName || 'EVENT',
+    short_name: eventName || 'FES',
     id: pagePath,
     start_url: pagePath,
     scope: pagePath,

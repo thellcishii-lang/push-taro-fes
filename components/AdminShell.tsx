@@ -155,7 +155,7 @@ export function AdminShell({
             >
               Push-taro
               <br />
-              EVENT
+              FES
             </div>
             <div
               style={{

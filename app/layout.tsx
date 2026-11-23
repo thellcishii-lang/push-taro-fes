@@ -22,13 +22,13 @@ const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://push-taro.com';
 
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
-  title: 'Push-taro.EVENT｜展示会向けプッシュ通知 × クーポン',
+  title: 'Push-taro FES｜音楽フェス・大型イベント向けプッシュ通知 × クーポン',
   description:
-    'Push-taro.EVENTは、展示会・大型イベント向けのプッシュ通知 × クーポン基盤です。来場者は会場QRコードから登録し、出展者クーポンの取得・消込と、主催者からのプッシュ配信を行えます。',
+    'Push-taro FESは、音楽フェス・大型イベント向けのプッシュ通知 × クーポン基盤です。来場者は会場QRコードから登録し、出店者クーポンの取得・消込と、主催者からのプッシュ配信を行えます。',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Push-taro.EVENT',
+    title: 'Push-taro FES',
   },
   // Next が出すのは標準名（mobile-web-app-capable）のみで、iOS が見る
   // apple- 前置きの指定が live の head に無いため、明示的に追加する。

@@ -64,7 +64,7 @@ export default function NotFound() {
             border: '2px solid #e2e8f0',
           }}
         >
-          EVENTの使い方を見る
+          FESの使い方を見る
         </Link>
       </div>
     </main>
