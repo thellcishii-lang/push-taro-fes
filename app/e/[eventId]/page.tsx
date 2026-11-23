@@ -260,6 +260,8 @@ export default function EventVisitorPage() {
   const [notices, setNotices] = useState<EventNotice[]>([]);
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [myLocation, setMyLocation] = useState<VenueMapLocation | null>(null);
+  const mapWatchIdRef = useRef<number | null>(null);
+  const myLocationRef = useRef<VenueMapLocation | null>(null);
   const [mapFocus, setMapFocus] = useState<{ lat: number; lng: number; zoom: number } | null>(null);
   const [mapError, setMapError] = useState('');
   const [ttEntries, setTtEntries] = useState<PublicTimetableEntry[]>([]);
@@ -488,21 +490,44 @@ export default function EventVisitorPage() {
     }
   };
 
+  // 地図の現在地追従はこのページを開いている間だけ。離れたら止める。
+  useEffect(() => {
+    return () => {
+      if (mapWatchIdRef.current !== null) {
+        navigator.geolocation?.clearWatch(mapWatchIdRef.current);
+        mapWatchIdRef.current = null;
+      }
+    };
+  }, []);
+
   const handleShowMyLocation = () => {
     setMapError('');
     if (!('geolocation' in navigator)) {
       setMapError(uiText(locale, 'mapLocationFailed'));
       return;
     }
-    navigator.geolocation.getCurrentPosition(
+    // 追従中なら、最新の現在地に地図を合わせ直すだけ。
+    if (mapWatchIdRef.current !== null) {
+      const last = myLocationRef.current;
+      if (last) setMapFocus({ lat: last.lat, lng: last.lng, zoom: 17 });
+      return;
+    }
+    // 初回タップで追従を開始する。位置は端末の中だけで使い、
+    // サーバーには送らない。最初の1回だけ地図も現在地へ寄せる。
+    let firstFix = true;
+    mapWatchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         const loc = {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           accuracy: pos.coords.accuracy,
         };
+        myLocationRef.current = loc;
         setMyLocation(loc);
-        setMapFocus({ lat: loc.lat, lng: loc.lng, zoom: 17 });
+        if (firstFix) {
+          firstFix = false;
+          setMapFocus({ lat: loc.lat, lng: loc.lng, zoom: 17 });
+        }
       },
       () => setMapError(uiText(locale, 'mapLocationFailed')),
       { enableHighAccuracy: true, timeout: 10000 },
