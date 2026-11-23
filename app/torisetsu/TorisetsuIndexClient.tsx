@@ -16,15 +16,15 @@ export default function TorisetsuIndexClient() {
       <main className="t-main">
         <div className="t-hero">
           <span className="t-badge">User Manual</span>
-          <h1>Push-taro.EVENT 取扱説明書</h1>
-          <p>展示会・大型イベント向け Push-taro.EVENT の操作を解説します。</p>
+          <h1>Push-taro FES 取扱説明書</h1>
+          <p>音楽フェス・大型イベント向け Push-taro FES の操作を解説します。</p>
         </div>
 
         <div className="t-plan-grid">
           <Link href="/torisetsu/event" className="t-plan-card">
             <div className="t-plan-icon">🎪</div>
             <div className="t-plan-name">Push-taro FES</div>
-            <div className="t-plan-desc">展示会・大型イベント向け</div>
+            <div className="t-plan-desc">音楽フェス・大型イベント向け</div>
             <ul className="t-plan-list">
               <li>データのリセット方式A / Bの違い</li>
               <li>イベント終了時の消去手順</li>

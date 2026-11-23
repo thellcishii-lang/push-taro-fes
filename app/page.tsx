@@ -6,9 +6,9 @@ import Link from 'next/link';
 import BrandLogo from '@/components/BrandLogo';
 
 export const metadata: Metadata = {
-  title: 'Push-taro.EVENT｜展示会向けプッシュ通知 × クーポン',
+  title: 'Push-taro FES｜音楽フェス・大型イベント向けプッシュ通知 × クーポン',
   description:
-    'Push-taro.EVENT は展示会・大型イベント向けのプッシュ通知 × クーポン基盤です。来場者の方は会場のQRコードからアクセスしてください。',
+    'Push-taro FES は音楽フェス・大型イベント向けのプッシュ通知 × クーポン基盤です。来場者の方は会場のQRコードからアクセスしてください。',
   robots: { index: false, follow: false },
 };
 
@@ -29,10 +29,10 @@ export default function HomePage() {
     >
       <BrandLogo />
       <h1 style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a', margin: '24px 0 12px' }}>
-        Push-taro.EVENT
+        Push-taro FES
       </h1>
       <p style={{ fontSize: '15px', color: '#64748b', lineHeight: 1.9, maxWidth: '520px', marginBottom: '32px' }}>
-        このドメインは、展示会・大型イベント向けアプリ「Push-taro.EVENT」専用です。
+        このドメインは、音楽フェス・大型イベント向けアプリ「Push-taro FES」専用です。
         <br />
         来場者の方は、会場に掲示されたQRコードからアクセスしてください。
         <br />
