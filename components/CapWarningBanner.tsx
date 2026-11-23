@@ -13,7 +13,7 @@ import { openHonkeLink } from '@/lib/honke-handoff-client';
 import type { Locale } from '@/lib/i18n';
 import type { CapWarning } from '@/lib/cap-warning';
 
-const HONKE_SHOP_URL = 'https://push-taro.com/event-account';
+const HONKE_SHOP_URL = 'https://push-taro.com/fes-account';
 
 const DATE_LOCALES: Record<Locale, string> = {
   ja: 'ja-JP',

@@ -42,9 +42,9 @@ describe('createHandoffToken', () => {
 });
 
 describe('buildHonkeHandoffUrl', () => {
-  it('points account links at /event-account', () => {
+  it('points account links at /fes-account', () => {
     const url = buildHonkeHandoffUrl({ contractId: 'shop-1', purpose: 'account' }, SECRET, NOW);
-    expect(url.startsWith('https://push-taro.com/event-account?handoff=')).toBe(true);
+    expect(url.startsWith('https://push-taro.com/fes-account?handoff=')).toBe(true);
   });
 
 });
