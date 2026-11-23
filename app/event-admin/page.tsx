@@ -108,8 +108,8 @@ function toForm(event: EventConfig): EventForm {
 
 const VIOLET = '#0e7fc4';
 
-// 契約まわりの手続きは本家の EVENT 専用契約ページ（push-taro.com/event-account）。
-const HONKE_SHOP_URL = 'https://push-taro.com/event-account';
+// 契約まわりの手続きは本家の FES 専用契約ページ（push-taro.com/fes-account）。
+const HONKE_SHOP_URL = 'https://push-taro.com/fes-account';
 
 const containerStyle: React.CSSProperties = {
   padding: '20px 16px 48px',
